@@ -5,12 +5,12 @@
 # install packages (first run only)
 # install.packages(c("easypackages", "conflicted", "dplyr", "here", "ggplot2", 
 #                    "ape", "data.tree", "tidyverse", "rfishbase", "stringdist", 
-#                    "purrr", "tictoc"))
+#                    "purrr", "tictoc", "stringr"))
 
 # load packages
 library(easypackages)
 libraries("conflicted", "dplyr", "here", "ggplot2", "ape", "data.tree", 
-          "tidyverse", "rfishbase", "stringdist", "purrr", "tictoc")
+          "tidyverse", "rfishbase", "stringdist", "purrr", "tictoc", "stringr")
 
 # resolve package conflicts
 conflict_prefer("select", "dplyr")
@@ -499,7 +499,7 @@ blennies = tibble(
 
 # add the missing species info back to our taxonomic data
 taxo = rbind(taxo, blennies) %>%
-  distinct(speciesbinomial)
+  distinct(speciesbinomial, .keep_all = TRUE)
 
 # are there any other missing species?
 lost_taxa = as.data.frame(setdiff(species_names, taxo$speciesbinomial))
