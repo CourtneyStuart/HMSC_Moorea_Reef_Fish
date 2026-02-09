@@ -520,7 +520,7 @@ phylo_tree = as.phylo.Node(taxo_tree)
 
 # save the taxonomic tree for the full LTER dataset (before considering traits)
 svg(here("Figures", "Full_LTER_Taxonomic_Tree.svg"), width = 20, height = 40)
-plot.phylo(phylo_tree, cex = 0.35)
+plot.phylo(phylo_tree, cex = 0.75, show.node.label = TRUE, show.tip.label = TRUE)
 dev.off()
 
 # save the tree as a .tre file (Newick format)
@@ -861,7 +861,7 @@ phylo_tree_filtered = as.phylo.Node(taxo_tree_filtered)
 
 # save the graphic
 svg(here("Figures", "Filtered_LTER_Taxonomic_Tree.svg"), width = 20, height = 40)
-plot.phylo(phylo_tree_filtered, cex = 0.75)
+plot.phylo(phylo_tree_filtered, cex = 0.75, show.node.label = TRUE, show.tip.label = TRUE)
 dev.off()
 
 # save the tree as a .tre file (Newick format)
