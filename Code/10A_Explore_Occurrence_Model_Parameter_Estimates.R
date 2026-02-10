@@ -1,5 +1,5 @@
 #### CONTACT ####
-# Courtney Stuart (courtney.e.stuart@gmail.com; courtney.stuart@mansfield.ox.ac.uk)
+# Courtney Stuart (courtney.seascape@gmail.com)
 
 #### LIBRARIES ####
 # install required packages (first run only)
@@ -26,7 +26,7 @@ anemone = pnw_palette(name = "Anemone", n = 8, type = "continuous")
 sailboat = pnw_palette(name = "Sailboat", n = 8, type = "continuous")
 
 #### DIRECTORIES ####
-# working directory and relative folder path for here
+# working directory and relative folder path for here()
 #setwd("E:/Data/StuartC_DPhil_Ch3/")
 #set_here("E:/Data/StuartC_DPhil_Ch3/") # set first-time only
 here::i_am(".here")
