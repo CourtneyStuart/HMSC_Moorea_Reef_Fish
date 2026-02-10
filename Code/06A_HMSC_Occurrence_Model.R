@@ -79,7 +79,8 @@ PA_model = sampleMcmc(PA_model,
                       transient = transient,
                       nChains = nChains, 
                       nParallel = nParallel,
-                      initPar = "fixed effects")
+                      initPar = "fixed effects",
+                      verbose = 100)
 end_time = Sys.time()
 
 cat("Completed in:", difftime(end_time, start_time, units = "mins"), "minutes\n")
