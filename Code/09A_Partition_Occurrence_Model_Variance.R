@@ -229,9 +229,9 @@ names(PA_model$rL)  # random effects: should be "site" and "year"
 group = c(
   0,     # (Intercept) - typically coded as 0
   1, 1,  # HabitatForereef, HabitatFringing (Habitat type)
-  2,     # COTS
+  2,     # COTS abundance
   3,     # Max_DHW
-  4, 4, 4,  # Cyclone1, Cyclone2, Cyclone3 (Cyclone Oli)
+  4, 4, 4,  # Cyclone1, Cyclone2, Cyclone3 (Cyclone exposure)
   5,     # Land_Dist 
   6, 6,  # Depth_Mean_100m, Depth_Mean_500m (Depth)
   7, 7,  # Curvature_Mean_100m, Curvature_Mean_500m (Curvature)
@@ -239,7 +239,7 @@ group = c(
 )
 
 # set group names
-group_names = c("Habitat type", "COTS", "DHW", "Cyclone Oli", 
+group_names = c("Habitat type", "COTS abundance", "Maximum DHW", "Cyclone exposure", 
                 "Distance to land", "Depth", "Curvature", "Benthic cover")
 
 # verify the length matches
@@ -268,6 +268,7 @@ vp_grouped_means = rowMeans(vp_grouped_vals) # convert to percentage
 legend_labels = paste0(rownames(vp_grouped_vals), 
                        " (mean = ", round(vp_grouped_means, 2), ")")
 
+##### landscape orientation #####
 # create the plot
 jpeg(filename = here("Figures", "PA_Model", "Variance_Partitioning_Grouped.jpg"), 
      width = 16, 
@@ -307,6 +308,54 @@ legend(x = par("usr")[2] - 6,
        cex = 0.8,
        xpd = TRUE,
        bty = "n")
+dev.off()
+
+##### portrait orientation #####
+jpeg(
+  filename = here("Figures", "PA_Model", "Variance_Partitioning_Grouped_Portrait.jpg"),
+  width = 9,
+  height = 13,
+  units = "in",
+  res = 450)
+
+par(
+  mar = c(5.5, 5.5, 0, 0.5),
+  mgp = c(-1.75, 0.75, 0),
+  xpd = NA)
+
+bp = barplot(
+  vp_grouped_vals,
+  horiz = TRUE,
+  las = 1,
+  cex.axis = 0.8,
+  cex.lab = 0.8,
+  names.arg = rep("", ncol(vp_grouped_vals)),
+  col = colorRamps::matlab.like(nrow(vp_grouped_vals)),
+  xlab = "Proportion of variance in occurrence",
+  border = "black",
+  legend = FALSE,
+  xlim = c(0, max(colSums(vp_grouped_vals)) * 1.02),
+  space = 0)
+
+# add italicized species names on y-axis
+axis(
+  side = 2,
+  at = bp,
+  labels = species_labels, #use colnames(vp_ungrouped_vals) if you want full names instead
+  las = 2,
+  font = 3,
+  cex.axis = 0.475)
+
+# # bottom legend with extra separation
+legend(
+  "bottom",
+  legend = legend_labels,
+  fill = colorRamps::matlab.like(nrow(vp_grouped_vals)),
+  ncol = 3,
+  bty = "n",
+  cex = 0.7,
+  inset = c(0, -0.0875))
+
 dev.off()
 
 #### UNGROUPED FIXED EFFECTS ####
@@ -389,7 +438,7 @@ legend(x = par("usr")[2] - 6,
 
 dev.off()
 
-###### portrait orientation #####
+##### portrait orientation #####
 par(mfrow = c(1, 1))
 
 # calculate mean variance explained by each component
