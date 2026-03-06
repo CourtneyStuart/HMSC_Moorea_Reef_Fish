@@ -129,10 +129,10 @@ FR_long = reshape(
 rownames(FR_long) = NULL
 FR_long = FR_long[, c("Species", "Component", "Variance")]
 
-# how many species had >= 40% captured by random effects?
+# how many species had greater than one-third of variance captured by random effects?
 random_sp = FR_long %>%
   filter(Component == "Random effects" &
-           Variance >= 0.35)
+           Variance >= (1/3))
 
 # choose colors for plotting
 cols = c("blue4", "darkorange")  # blue = fixed, orange = random
