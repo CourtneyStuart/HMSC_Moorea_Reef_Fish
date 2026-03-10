@@ -38,11 +38,6 @@ model.directory = here("HMSC", "Models")
 
 list.files(model.directory)
 
-#### EFFECTIVE SAMPLE SIZES & PSRFs ####
-# examine MCMC convergence using the potential scale reduction factor (psrf) of the beta and 
-# omega parameters. for omega, we take a sub-sample of # randomly selected species pairs to
-# avoid excessive computations.
-
 # read in the results file
 nChains = 2
 samples = 600
@@ -252,8 +247,9 @@ vp_grouped = computeVariancePartitioning(PA_model,
                                  groupnames = group_names)
 
 # examine results
-vp_grouped$vals  # variance explained by each component
-vp_grouped$R2T   # influence of traits
+vp_grouped$vals  # variance proportion for each group and species
+vp_grouped$R2T   # R2T gives the variance among species explained by traits, measured for 
+# species' responses to covariates ($R2T$Beta) and species occurrences ($R2T$Y)
 
 # plot variance partitioning
 par(mfrow = c(1, 1))
