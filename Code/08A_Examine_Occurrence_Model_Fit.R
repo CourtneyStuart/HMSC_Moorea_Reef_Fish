@@ -51,7 +51,7 @@ load(filename)
 # convert to coda object
 mpost = convertToCodaObject(PA_model, spNamesNumbers = c(T,F), covNamesNumbers = c(T,F))
 
-#### EXPLANATORY POWER ####
+#### EXPLANATORY PERFORMANCE ####
 # compute fitted values (expected values)
 fitted = computePredictedValues(PA_model, expected = TRUE)
 
@@ -88,7 +88,7 @@ auc_fit = data.frame(
   species = colnames(PA_model$Y),
   AUC = MF_fit$AUC)
 
-#### PREDICTIVE POWER ####
+#### IN-SAMPLE POSTERIOR PREDICTIVE PERFORMANCE ####
 # generates new predictions by sampling from the posterior predictive distribution
 # compute predicted values
 predicted = computePredictedValues(PA_model, expected = FALSE)
@@ -148,7 +148,7 @@ hist(MF_predictive$TjurR2, xlab = expression("Tjur R"^2~"(predictive)"), main = 
 abline(v = 0, col = "black", lty = "dashed")
 dev.off()
 
-# create a table that includes both the explanatory and predictive metrics
+# create a table that includes both the explanatory and in-sample posterior predictive performance metrics
 model_fit = (auc_fit %>%
                rename(AUC_Explanatory = AUC) %>%
                left_join(auc_predictive %>%
