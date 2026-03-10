@@ -347,7 +347,7 @@ print(summary(es.gamma))
 # examine if the species niches are linked to their traits with a Gamma-plot
 postGamma = getPostEstimate(PA_model, parName = "Gamma")
 plotGamma(PA_model, 
-          post= postGamma, 
+          post = postGamma, 
           trNamesNumbers = c(TRUE, FALSE),
           covNamesNumbers = c(TRUE, FALSE),
           colors = colorRampPalette(c("darkred","white","darkblue")),
@@ -386,7 +386,7 @@ plotGamma(PA_model,
 dev.off()
 
 # another way of examining the influence of traits is to see how much of the variation they
-# explain among the responses of the species to their covariates.
+# explain among the responses of the species to their covariates:
 # variance partitioning without groupings 
 vp_ungrouped = computeVariancePartitioning(PA_model)
 vp_ungrouped$R2T$Beta
@@ -422,10 +422,11 @@ ggplot(data.frame(Rho = rho_samples_flat), aes(x = Rho)) +
         panel.grid.minor = element_blank(),
         axis.text = element_text(color = "black"))
 
-# these results indicate a moderate to strong phylogenetic signal! phylogenetically
-# related fish species tend to respond similarly to environmental conditions. about 
+# these results indicate a moderate to strong phylogenetic signal! closely related
+# species tend to respond similarly to environmental conditions. about 
 # 68% of the variation in species' niche preferences can be attributed to shared 
-# evolutionary history. 
+# evolutionary history (assuming we are not missing any important environmental covariates 
+# or functional traits).
 
 # next illustrate the species associations revealed by the random effects
 require(corrplot)
@@ -435,10 +436,13 @@ toPlot = ((OmegaCor[[1]]$support>supportLevel)
           + (OmegaCor[[1]]$support<(1-supportLevel))>0)*OmegaCor[[1]]$mean
 toPlot = sign(toPlot)
 plotOrder = corrMatOrder(OmegaCor[[1]]$mean, order = "AOE")
+
 corrplot(toPlot[plotOrder, plotOrder], 
          method = "color",
+         type = "lower",
          tl.cex = 0.625,
          tl.col = "black",
+         tl.srt = 45,
          cl.cex = 1.5,
          col = c("darkred", "white", "darkblue"),
          is.corr = FALSE,
@@ -455,8 +459,10 @@ par(mar = c(0, 0, 0, 0),
     xpd = TRUE)
 corrplot(toPlot[plotOrder, plotOrder], 
          method = "color",
+         type = "lower",
          tl.cex = 0.625,
          tl.col = "black",
+         tl.srt = 45,
          cl.cex = 1.5,
          col = c("darkred", "white", "darkblue"),
          is.corr = FALSE,
