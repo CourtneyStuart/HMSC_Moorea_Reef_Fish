@@ -99,20 +99,20 @@ low.es.beta
 # use caution if interpreting environmental relationships for these two species 
 # specifically (as we have limited confidence in these beta parameter estimates).
 
-# to look at all omega PSRFs we would run the line below; however, we have many
-# species pairs (with 143 unique species) so this would take a lot of time and 
+# to look at all omega PSRFs we run the line below; however, we have many
+# species pairs (with 143 unique species) so this takes a lot of time and 
 # computational effort!!!
-# psrf = gelman.diag(mpost$Omega[[1]], multivariate = FALSE)$psrf
+psrf.omega = gelman.diag(mpost$Omega[[1]], multivariate = FALSE)$psrf
 
-# instead, for omega, we will take a sub-sample of 5000 randomly selected species 
+# instead, for omega, we can take a sub-sample of 5000 randomly selected species 
 # pairs to avoid excessive computations.
-tmp = mpost$Omega[[1]]
-z = ncol(tmp[[1]])
-sel = sample(z, size = 5000)
-
-# here we take the subset of species pairs + loop over the 2 MCMC chains
-for(i in 1:length(tmp)){ 
-  tmp[[i]] = tmp[[i]][,sel]}
+# tmp = mpost$Omega[[1]]
+# z = ncol(tmp[[1]])
+# sel = sample(z, size = 5000)
+# 
+# # here we take the subset of species pairs + loop over the 2 MCMC chains
+# for(i in 1:length(tmp)){
+#   tmp[[i]] = tmp[[i]][,sel]}
 
 psrf.omega = gelman.diag(tmp, multivariate = FALSE)$psrf
 summary(psrf.omega) # look at the spread of values
