@@ -233,7 +233,9 @@ p3 = ggplot(df_gamma, aes(x = psrf)) +
 
 # combine plots with automatic labels
 combined_plot = p1 + p2 + p3 + 
-  plot_annotation(tag_levels = 'A')
+  plot_annotation(tag_levels = 'a',
+                  tag_prefix = '(',
+                  tag_suffix = ')')
 
 # save the plot as a figure
 ggsave(here("Figures", "PA_model", "Convergence_PSRFs.jpeg"),
