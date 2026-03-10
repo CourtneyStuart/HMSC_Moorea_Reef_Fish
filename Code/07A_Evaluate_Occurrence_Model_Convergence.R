@@ -4,7 +4,7 @@
 #### LIBRARIES ####
 # install required packages (first run only)
 # install.packages(c("easypackages", "conflicted", "tidyr", "dplyr", "here", "ggplot2",
-#                    "Hmsc", "coda", "stringr", "patchwork", "PNWColors))
+#                    "Hmsc", "coda", "stringr", "patchwork", "PNWColors"))
 
 # load packages
 library(easypackages)
