@@ -354,12 +354,23 @@ legend(
 
 dev.off()
 
+# save the grouped variance partitioning results as a csv file
+vp_grouped_transposed = vp_grouped_vals %>%
+  t() %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "Species") %>%
+  mutate(across(-Species, ~ round(.x, 2)))
+
+write.csv(vp_grouped_transposed,
+          here("HMSC", "Data", "Variance_Partitioning_Grouped.csv"),
+          row.names = FALSE)
+
 #### UNGROUPED FIXED EFFECTS ####
 # variance partitioning without groupings 
 vp_ungrouped = computeVariancePartitioning(PA_model)
 
 # examine results
-vp_ungrouped$vals # variance proportion for each group and species
+vp_ungrouped$vals # variance proportion for each variable and species
 vp_ungrouped$R2T # R2T gives the variance among species explained by traits, measured for 
 # species' responses to covariates ($R2T$Beta) and species occurrences ($R2T$Y)
 
@@ -488,3 +499,14 @@ legend(
   inset = c(0, -0.16))
 
 dev.off()
+
+# save the ungrouped variance partitioning results as a csv file
+vp_ungrouped_transposed = vp_ungrouped_vals %>%
+  t() %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "Species") %>%
+  mutate(across(-Species, ~ round(.x, 2)))
+
+write.csv(vp_ungrouped_transposed,
+          here("HMSC", "Data", "Variance_Partitioning_Ungrouped.csv"),
+          row.names = FALSE)
