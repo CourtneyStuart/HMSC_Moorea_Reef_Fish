@@ -460,6 +460,8 @@ par(mar = c(0, 0, 0, 0),
 corrplot(toPlot[plotOrder, plotOrder], 
          method = "color",
          type = "lower",
+         outline = TRUE,
+         addgrid.col = "gray40",
          tl.cex = 0.625,
          tl.col = "black",
          tl.srt = 45,
@@ -472,11 +474,132 @@ dev.off()
 gc()
 
 #### RESIDUAL SPECIES ASSOCIATIONS ####
+##### co-occurrence matrix for only significant pairwise associations (±1) ##### 
+# next illustrate the species associations revealed by the random effects
+require(corrplot)
+OmegaCor = computeAssociations(PA_model)
+supportLevel = 0.95
+
+# build sign matrix (1 = positive assoc, -1 = negative assoc, 0 = no strong support)
+toPlot = ((OmegaCor[[1]]$support > supportLevel) |
+            (OmegaCor[[1]]$support < (1 - supportLevel))) * OmegaCor[[1]]$mean
+toPlot = sign(toPlot)
+diag(toPlot) = 0 # remove the diagonal (species self pairs automatically have +1 association)
+
+# species names
+sp_names = rownames(OmegaCor[[1]]$mean)
+if (is.null(sp_names)) sp_names = as.character(seq_len(nrow(OmegaCor[[1]]$mean)))
+
+# find species with at least one non-zero association
+keep_species = sp_names[rowSums(abs(toPlot)) > 0]
+
+if (length(keep_species) == 0) {
+  stop("No species have >= 95% posterior support for positive OR negative residual correlations.")
+} else if (length(keep_species) == 1) {
+  stop("Only one species has significant associations — nothing to plot as a matrix.")
+}
+
+# preserve ordering
+plotOrder = corrMatOrder(OmegaCor[[1]]$mean, order = "AOE")
+plotOrder_names = sp_names[plotOrder]
+keep_order_names = plotOrder_names[plotOrder_names %in% keep_species]
+
+# subset matrix
+toPlot_sub = toPlot[keep_order_names, keep_order_names]
+
+# plot
+corrplot(toPlot_sub, 
+         method = "color",
+         type = "lower",
+         font = 3,
+         outline = TRUE,
+         addgrid.col = "gray40",
+         tl.cex = 0.625,
+         tl.col = "black",
+         tl.srt = 45,
+         cl.cex = 1.5,
+         col = c("darkred", "white", "darkblue"),
+         is.corr = FALSE,
+         cl.length = 3)
+
+# save
+jpeg(filename = here("Figures", "PA_Model", "Omega_Plot_Significant_Only.jpg"), 
+     width = 10, height = 10, units = "in", res = 450)
+par(mar = c(0, 0, 0, 0), xpd = TRUE)
+corrplot(toPlot_sub, 
+         method = "color",
+         type = "lower",
+         font = 3,
+         outline = TRUE,
+         addgrid.col = "gray40",
+         tl.cex = 0.625,
+         tl.col = "black",
+         tl.srt = 45,
+         cl.cex = 1.5,
+         col = c("darkred", "white", "darkblue"),
+         is.corr = FALSE,
+         cl.length = 3)
+dev.off()
+
+gc()
+
+##### full co-occurrence matrix #####
+# this is the correlation matrix for the full community (all omegas), including 
+# non-significant pairwise associations
+OmegaCor = computeAssociations(PA_model)
+supportLevel = 0.95
+
+toPlot = ((OmegaCor[[1]]$support>supportLevel)
+          + (OmegaCor[[1]]$support<(1-supportLevel))>0)*OmegaCor[[1]]$mean
+toPlot = sign(toPlot)
+plotOrder = corrMatOrder(OmegaCor[[1]]$mean, order = "AOE")
+
+corrplot(toPlot[plotOrder, plotOrder], 
+         method = "color",
+         type = "lower",
+         font = 3,
+         outline = TRUE,
+         addgrid.col = "gray40",
+         tl.cex = 0.625,
+         tl.col = "black",
+         tl.srt = 45,
+         cl.cex = 1.5,
+         col = c("darkred", "white", "darkblue"),
+         is.corr = FALSE,
+         cl.length = 3)
+
+# the red and blue colours indicate those species pairs for which the support for
+# either a positive or negative association is at least 0.95.
+jpeg(filename = here("Figures", "PA_Model", "Omega_Plot_Full.jpg"), 
+     width = 16, 
+     height = 16, 
+     units = "in", 
+     res = 450)
+par(mar = c(0, 0, 0, 0),
+    xpd = TRUE)
+corrplot(toPlot[plotOrder, plotOrder], 
+         method = "color",
+         type = "lower",
+         font = 3,
+         outline = TRUE,
+         addgrid.col = "gray40",
+         tl.cex = 0.625,
+         tl.col = "black",
+         tl.srt = 45,
+         cl.cex = 1.5,
+         col = c("darkred", "white", "darkblue"),
+         is.corr = FALSE,
+         cl.length = 3)
+dev.off()
+
+gc()
+
+# identify those species with the greatest positive and negative associations
 # restore the full species names for these calculations
 colnames(PA_model$Y) = full_species
 PA_model$spNames = full_species
 
-# get the residual species  co-occurrence matrix
+# get the residual species co-occurrence matrix
 postOmega = getPostEstimate(PA_model, parName = "Omega")
 support = postOmega$support
 
