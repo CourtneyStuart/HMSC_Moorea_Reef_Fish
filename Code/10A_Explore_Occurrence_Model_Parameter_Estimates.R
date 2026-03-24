@@ -606,24 +606,43 @@ support = postOmega$support
 # use the upper triangle only (exclude diagonal self-pairs)
 upper = upper.tri(support)
 
-# find  positive & negative associations with strong support (posterior prob >= 95%)
+# find positive associations with strong support (posterior probability >= 95%)
 idx_pos = which(support >= 0.95 & upper, arr.ind = TRUE)
+
+# associations with <=0.05 posterior probability of a positive association
+# can be interpreted as having >=0.95 support for a negative association
 idx_neg = which(support <= 0.05 & upper, arr.ind = TRUE)
 
+# identify the positive pairs
 positive_pairs = data.frame(
   Species_1 = colnames(PA_model$Y)[idx_pos[, 1]],
   Species_2 = colnames(PA_model$Y)[idx_pos[, 2]],
   Support   = support[idx_pos])
 
+# quick check to confirm there are no self pairs (A-B B-A)
+positive_pairs = positive_pairs %>%
+  mutate(sp1 = pmin(Species_1, Species_2),
+         sp2 = pmax(Species_1, Species_2)) %>%
+  distinct(sp1, sp2, .keep_all = TRUE) %>%
+  select(-sp1, -sp2)
+
+# identify the negative pairs
 negative_pairs = data.frame(
   Species_1 = colnames(PA_model$Y)[idx_neg[, 1]],
   Species_2 = colnames(PA_model$Y)[idx_neg[, 2]],
   Support   = support[idx_neg])
 
-# strong positive associations
+# quick check to confirm there are no self pairs (A-B B-A)
+negative_pairs = negative_pairs %>%
+  mutate(sp1 = pmin(Species_1, Species_2),
+         sp2 = pmax(Species_1, Species_2)) %>%
+  distinct(sp1, sp2, .keep_all = TRUE) %>%
+  select(-sp1, -sp2)
+
+# count how many strong residual positive associations there are
 n_positive = sum(support[upper] >= 0.95)
 
-# strong negative associations
+#  count how many strong residual negative associations there are
 n_negative = sum(support[upper] <= 0.05)
 
 # who had the most positive and negative associations?
@@ -639,3 +658,67 @@ negative_counts = sort(
   decreasing = TRUE) |>
   as.data.frame()
 colnames(negative_counts) = c("Species", "N_negative_associations")
+
+##### butterflyfish interactions #####
+# identify positive residual species-to-species associations involving Chaetodon butterflyfishes
+# keeping only unique pairs (no A-B B-A duplicates)
+positive_chaetodon_pairs = positive_pairs %>% 
+  filter(str_detect(Species_1, "Chaetodon\\.") | 
+           str_detect(Species_2, "Chaetodon\\.")) %>%
+  rowwise() %>%
+  mutate(sp1 = min(c(Species_1, Species_2)),
+         sp2 = max(c(Species_1, Species_2))) %>%
+  ungroup() %>%
+  distinct(sp1, sp2, .keep_all = TRUE) %>%
+  select(-sp1, -sp2)
+
+# identify negative residual species-to-species associations involving Chaetodon butterflyfishes
+# keeping only unique pairs (no A-B B-A duplicates)
+negative_chaetodon_pairs = negative_pairs %>% 
+  filter(str_detect(Species_1, "Chaetodon\\.") | 
+           str_detect(Species_2, "Chaetodon\\.")) %>%
+  rowwise() %>%
+  mutate(sp1 = min(c(Species_1, Species_2)),
+         sp2 = max(c(Species_1, Species_2))) %>%
+  ungroup() %>%
+  distinct(sp1, sp2, .keep_all = TRUE) %>%
+  select(-sp1, -sp2)
+
+# what percentage of ALL positive and negative residual species-to-species associations
+# involved butterflyfish?
+100 * (nrow(positive_chaetodon_pairs) / nrow(positive_pairs))
+100 * (nrow(negative_chaetodon_pairs) / nrow(negative_pairs))
+
+# how many positive pairs were Chaetodon-Chaetodon?
+positive_chaetodon_chaetodon = positive_chaetodon_pairs %>%
+  filter(str_detect(Species_1, "Chaetodon\\.") &
+           str_detect(Species_2, "Chaetodon\\.")) %>%
+  nrow()
+
+# how many negative pairs were Chaetodon-Chaetodon?
+negative_chaetodon_chaetodon = negative_chaetodon_pairs %>%
+  filter(str_detect(Species_1, "Chaetodon\\.") &
+           str_detect(Species_2, "Chaetodon\\.")) %>%
+  nrow()
+
+# do chaetodontids co-occur with acanthurids and pomacentrids more (positive) or 
+# less (negative) than expected based on their responses to environmental covariates?
+acanthuridae = c("Acanthurus", "Ctenochaetus", "Naso")
+pomacentridae = c("Chromis", "Dascyllus", "Pycnochromis", "Stegastes")
+target_genera = c(acanthuridae, pomacentridae)
+
+# positive residual associations
+positive_acanthurid_pomacentrid = positive_chaetodon_pairs %>%
+  filter(
+    (str_detect(Species_1, "Chaetodon\\.") & 
+       str_detect(Species_2, paste0("^(", paste(target_genera, collapse="|"), ")\\."))) |
+      (str_detect(Species_2, "Chaetodon\\.") & 
+         str_detect(Species_1, paste0("^(", paste(target_genera, collapse="|"), ")\\."))))
+
+# negative residual associations
+negative_acanthurid_pomacentrid = negative_chaetodon_pairs %>%
+  filter(
+    (str_detect(Species_1, "Chaetodon\\.") & 
+       str_detect(Species_2, paste0("^(", paste(target_genera, collapse="|"), ")\\."))) |
+      (str_detect(Species_2, "Chaetodon\\.") & 
+         str_detect(Species_1, paste0("^(", paste(target_genera, collapse="|"), ")\\."))))
