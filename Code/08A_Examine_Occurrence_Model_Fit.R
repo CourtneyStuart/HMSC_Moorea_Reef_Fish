@@ -39,8 +39,8 @@ model.directory = here("HMSC", "Models")
 list.files(model.directory)
 
 # read in the results file
-nChains = 2
-samples = 600
+nChains = 4
+samples = 2000
 thin = 100
 filename = file.path(model.directory, 
                      paste0("PA_model_chains_", as.character(nChains),
@@ -60,11 +60,11 @@ MF_fit = evaluateModelFit(hM = PA_model, predY = fitted)
 
 # check model fit metrics
 round((mean(MF_fit$TjurR2)), digits = 2)  # mean Tjur R2 across species
-round((summary(MF_fit$TjurR2)), digits = 2)  # distribution of R2 values
+round((summary(MF_fit$TjurR2)), digits = 2)  # distribution of Tjur R2 values
 round((mean(MF_fit$AUC)), digits = 2) # mean AUC across species
 round((summary(MF_fit$AUC)), digits = 2) # distribution of AUC values
 
-# create simple histogram plots of TjurR2 and AUC
+# create simple histogram plots of Tjur R2 and AUC
 jpeg(filename = here("Figures", "PA_Model", "AUC_and_TjurR2_Explanatory_Power.jpg"),
      width = 16,
      height = 8,
@@ -102,8 +102,8 @@ round((summary(MF_predictive$TjurR2)), digits = 2)  # distribution of R2 values
 round((mean(MF_predictive$AUC)), digits = 2) # mean AUC across species
 round((summary(MF_predictive$AUC)), digits = 2) # distribution of AUC values
 
-# create simple histogram plots of TjurR2 and AUC
-jpeg(filename = here("Figures", "PA_Model", "AUC_and_TjurR2_Predictive.jpg"),
+# create simple histogram plots of AUC and Tjur R2
+jpeg(filename = here("Figures", "PA_Model", "AUC_and_TjurR2_In_Sample_Predictive.jpg"),
      width = 16,
      height = 8,
      units = "in",
@@ -126,7 +126,7 @@ auc_predictive = data.frame(
   AUC = MF_predictive$AUC)
 
 #### MULTI-PANEL PERFORMANCE PLOT ####
-# four panel plot to show both explanatory and predictive power
+# four panel plot to show both explanatory and in-sample poserior predictive performance
 jpeg(filename = here("Figures", "PA_Model", "AUC_and_TjurR2_Explanatory_and_Predictive.jpg"),
      width = 8,
      height = 8,
@@ -148,7 +148,8 @@ hist(MF_predictive$TjurR2, xlab = expression("Tjur R"^2~"(predictive)"), main = 
 abline(v = 0, col = "black", lty = "dashed")
 dev.off()
 
-# create a table that includes both the explanatory and in-sample posterior predictive performance metrics
+# create a table that includes both the explanatory and in-sample posterior predictive 
+# performance metrics
 model_fit = (auc_fit %>%
                rename(AUC_Explanatory = AUC) %>%
                left_join(auc_predictive %>%
@@ -167,3 +168,49 @@ model_fit = (auc_fit %>%
 write.csv(model_fit,
           here("HMSC", "Data", "PA_Model_Fit_Metrics.csv"),
           row.names = FALSE)
+
+# how many species had AUC >= 0.99?
+model_fit %>%
+  summarise(
+    n_auc_expl = sum(AUC_Explanatory >= 0.99, na.rm = TRUE),
+    n_auc_pred = sum(AUC_Predictive >= 0.99, na.rm = TRUE))
+
+# which species had the lowest explanatory AUC?
+model_fit %>%
+  slice_min(AUC_Explanatory, n = 1)
+
+# which species had the highest explanatory AUC?
+model_fit %>%
+  slice_max(AUC_Explanatory, n = 1)
+
+# which species had the lowest in-sample posterior predictive AUC?
+model_fit %>%
+  slice_min(AUC_Predictive, n = 1)
+
+# which species had the highest in-sample posterior predictive AUC?
+model_fit %>%
+  slice_max(AUC_Predictive, n = 1)
+
+# which species had the lowest explanatory Tjur R2?
+model_fit %>%
+  slice_min(TjurR2_Explanatory, n = 1)
+
+# which species had the highest explanatory Tjur R2?
+model_fit %>%
+  slice_max(TjurR2_Explanatory, n = 1)
+
+# which species had the lowest in-sample posterior predictive Tjur R2?
+model_fit %>%
+  slice_min(TjurR2_Predictive, n = 1)
+
+# which species had the highest in-sample posterior predictive Tjur R2?
+model_fit %>%
+  slice_max(TjurR2_Predictive, n = 1)
+
+# what percentage of species had AUCs >= 0.8 and Tjur R2s >= 0.3?
+model_fit %>%
+  summarise(
+    pct_auc_expl = mean(AUC_Explanatory >= 0.8) * 100,
+    pct_auc_pred = mean(AUC_Predictive >= 0.8) * 100,
+    pct_tjur_expl = mean(TjurR2_Explanatory >= 0.3) * 100,
+    pct_tjur_pred = mean(TjurR2_Predictive >= 0.3) * 100)

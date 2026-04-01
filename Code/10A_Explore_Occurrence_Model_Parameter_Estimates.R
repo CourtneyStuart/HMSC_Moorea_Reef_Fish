@@ -27,7 +27,7 @@ sailboat = pnw_palette(name = "Sailboat", n = 8, type = "continuous")
 
 #### DIRECTORIES ####
 # working directory and relative folder path for here()
-#setwd("E:/Data/StuartC_DPhil_Ch3/")
+setwd("E:/Data/StuartC_DPhil_Ch3/")
 #set_here("E:/Data/StuartC_DPhil_Ch3/") # set first-time only
 here::i_am(".here")
 here::here() # verify
@@ -39,8 +39,8 @@ model.directory = here("HMSC", "Models")
 list.files(model.directory)
 
 # read in the results file
-nChains = 2
-samples = 600
+nChains = 4
+samples = 2000
 thin = 100
 filename = file.path(model.directory, 
                      paste0("PA_model_chains_", as.character(nChains),
@@ -82,7 +82,7 @@ full_species = PA_model$spNames
 colnames(PA_model$Y) = abbrv_species
 PA_model$spNames = abbrv_species
 
-# construct a beta-plot showing the estimates of species niche parameters
+# construct a beta plot showing the estimates of species' niche parameters
 postBeta = getPostEstimate(PA_model, parName = "Beta")
 
 # create the plot
@@ -111,8 +111,7 @@ plotBeta(PA_model,
 dev.off()
 
 # the intercept here refers to the reference level - HabitatBackreef in a non-cyclone
-# year (0) because the cycle variable had little influence (from variance explained),
-# we can essentially treat the reference as HabitatBackreef alone.
+# year (0).
 
 # the full beta plot may be hard to read because of the large number of species (n = 143)!
 # instead, split the species in half and make two beta plots.
@@ -126,7 +125,7 @@ jpeg(filename = here("Figures", "PA_Model", "Beta_Plot_1.jpg"),
      width = 6, 
      height = 12, 
      units = "in", 
-     res = 450)
+     res = 600)
 
 par(mar = c(10, 6.75, 0, 0), 
     mgp = c(0, 0, 0), 
@@ -154,7 +153,7 @@ jpeg(filename = here("Figures", "PA_Model", "Beta_Plot_2.jpg"),
      width = 6, 
      height = 12, 
      units = "in", 
-     res = 450)
+     res = 600)
 
 par(mar = c(10, 6.75, 0, 0), 
     mgp = c(0, 0, 0), 
@@ -192,11 +191,10 @@ beta_df = beta_df %>%
   mutate(Sign95 = case_when(
     Support_Pos >= thresh ~ "Positive",
     Support_Neg >= thresh ~ "Negative",
-    TRUE                 ~ "No_Effect"
-  ))
+    TRUE                 ~ "No_Effect"))
 
-# we don't want to plot beta parameters for the species-variable combinations with ESS < 100
-# identify and remove these
+# we don't want to plot beta parameters for the species-variable combinations with 
+# ESS < 100, so identify and remove these
 es.beta = effectiveSize(mpost$Beta)
 low.es.beta = es.beta[es.beta < 100]
 print(low.es.beta)
@@ -244,10 +242,10 @@ ggplot(beta_df,
                 label = label), 
             inherit.aes = FALSE, hjust = 1.05, size = 3)
 
-# one figure per variable
+# one figure per variable:
 # now, for each variable, plot the posterior mean beta for each species. shade the dots
 # based on whether the coefficient is negative, positive, or negligible at the 95% support
-# level. because there are so many species, also add a tally in the legend at the bottom!
+# level. because there are so many species, also add a tally in the legend at the bottom.
 # save a separate jpeg file for each variable. 
 vars = setdiff(PA_model$covNames, "(Intercept)")
 out_dir = here("Figures", "PA_Model")
@@ -311,12 +309,8 @@ PA_model$TrFormula
 
 if("Gamma" %in% names(mpost)) {
   gamma_params = mpost$Gamma
-  
-  # convert to mcmc.list if needed
-  gamma_params = as.mcmc.list(gamma_params)
-  
-  # check convergence
-  library(coda)
+    gamma_params = as.mcmc.list(gamma_params)
+    library(coda)
   psrf.gamma = gelman.diag(gamma_params, multivariate = FALSE)
 }
 
@@ -344,7 +338,7 @@ round((sum((psrf.gamma$psrf)[, "Upper C.I."] <= 1.1) / length((psrf.gamma$psrf)[
 es.gamma = effectiveSize(gamma_params)
 print(summary(es.gamma))
 
-# examine if the species niches are linked to their traits with a Gamma-plot
+# examine if the species niches are linked to their traits with a gamma plot
 postGamma = getPostEstimate(PA_model, parName = "Gamma")
 plotGamma(PA_model, 
           post = postGamma, 
@@ -353,19 +347,7 @@ plotGamma(PA_model,
           colors = colorRampPalette(c("darkred","white","darkblue")),
           supportLevel = 0.95)
 
-# - the negative relationship between Trophic_Level and Max_DHW indicates
-# that species in more thermal stress-prone environments tend to be lower
-# in the food chain (i.e., more herbivorous or primary consumers). this
-# suggests that predators (higher trophic levels) might be more vulnerable 
-# to the impacts of thermal stress compared to species lower in the food chain.
-# the 95% support indicates that this pattern is robust in the model, suggesting
-# it's a real and statistically significant relationship.
-
-# - the positive association between Spawn_Agg1 (species that form spawning aggregations)
-# and HabitatBackreef suggests that spawning aggregations tend to occur in backreef
-# habitats, likely due to the sheltered and resource-rich conditions these areas 
-# provide for reproductive success. 
-
+# save the figure
 jpeg(filename = here("Figures", "PA_Model", "Gamma_Plot.jpg"), 
      width = 8, 
      height = 5, 
@@ -385,24 +367,25 @@ plotGamma(PA_model,
 
 dev.off()
 
-# another way of examining the influence of traits is to see how much of the variation they
-# explain among the responses of the species to their covariates:
-# variance partitioning without groupings 
+# another way of examining the influence of traits is to see how much of the variation
+# they explain among the responses of the species to the environmental covariates:
 vp_ungrouped = computeVariancePartitioning(PA_model)
 vp_ungrouped$R2T$Beta
+(vp_ungrouped$R2T$Beta)*100 # as a percentage, rather than proportion
+
 
 # these results are consistent with the above figures: the traits explain only a very 
 # minor part of the variation. the same negative result is obtained also in the sense
-# that traits explain only a negligible proportion of variation in species occurrence:
+# that traits explain only a negligible proportion of variation in species' occurrence:
 vp_ungrouped$R2T$Y
 (vp_ungrouped$R2T$Y)*100 # as a percentage, rather than proportion
 
 #### PHYLOGENETIC SIGNAL ####
-# next evaluate the posterior distribution of the phylogenetic signal in species niches
+# next evaluate the posterior distribution of the phylogenetic signal in species niches.
 # a rho of 0 would mean phylogeny explains nothing (species niches are independent of
 # evolutionary history), while rho of 1 would mean phylogeny perfectly predicts niches 
 # (all variation is explained by evolutionary relationships). 
-round(summary(mpost$Rho, quantiles = c(0.025, 0.5, 0.975))[[2]],2)
+summary(mpost$Rho)
 
 # visualize the posterior distribution of Rho
 # extract posterior samples of Rho
@@ -422,60 +405,14 @@ ggplot(data.frame(Rho = rho_samples_flat), aes(x = Rho)) +
         panel.grid.minor = element_blank(),
         axis.text = element_text(color = "black"))
 
-# these results indicate a moderate to strong phylogenetic signal! closely related
+# these results indicate a moderate phylogenetic signal - closely related
 # species tend to respond similarly to environmental conditions. about 
-# 68% of the variation in species' niche preferences can be attributed to shared 
-# evolutionary history (assuming we are not missing any important environmental covariates 
-# or functional traits).
-
-# next illustrate the species associations revealed by the random effects
-require(corrplot)
-OmegaCor = computeAssociations(PA_model)
-supportLevel = 0.95
-toPlot = ((OmegaCor[[1]]$support>supportLevel)
-          + (OmegaCor[[1]]$support<(1-supportLevel))>0)*OmegaCor[[1]]$mean
-toPlot = sign(toPlot)
-plotOrder = corrMatOrder(OmegaCor[[1]]$mean, order = "AOE")
-
-corrplot(toPlot[plotOrder, plotOrder], 
-         method = "color",
-         type = "lower",
-         tl.cex = 0.625,
-         tl.col = "black",
-         tl.srt = 45,
-         cl.cex = 1.5,
-         col = c("darkred", "white", "darkblue"),
-         is.corr = FALSE,
-         cl.length = 3)
-
-# the red and blue colours indicate those species pairs for which the support for
-# either a positive or negative association is at least 0.95.
-jpeg(filename = here("Figures", "PA_Model", "Omega_Plot.jpg"), 
-     width = 16, 
-     height = 16, 
-     units = "in", 
-     res = 450)
-par(mar = c(0, 0, 0, 0),
-    xpd = TRUE)
-corrplot(toPlot[plotOrder, plotOrder], 
-         method = "color",
-         type = "lower",
-         outline = TRUE,
-         addgrid.col = "gray40",
-         tl.cex = 0.625,
-         tl.col = "black",
-         tl.srt = 45,
-         cl.cex = 1.5,
-         col = c("darkred", "white", "darkblue"),
-         is.corr = FALSE,
-         cl.length = 3)
-dev.off()
-
-gc()
+# 66% of the variation in species' niches can be attributed to shared evolutionary 
+# history (BUT NOTE that this assumes we are not missing any important environmental
+# covariates or functional traits).
 
 #### RESIDUAL SPECIES ASSOCIATIONS ####
-##### co-occurrence matrix for only significant pairwise associations (±1) ##### 
-# next illustrate the species associations revealed by the random effects
+##### co-occurrence matrix for only significant pairwise associations (+/-1) ##### 
 require(corrplot)
 OmegaCor = computeAssociations(PA_model)
 supportLevel = 0.95
@@ -522,7 +459,7 @@ corrplot(toPlot_sub,
          is.corr = FALSE,
          cl.length = 3)
 
-# save
+# save the figure
 jpeg(filename = here("Figures", "PA_Model", "Omega_Plot_Significant_Only.jpg"), 
      width = 10, height = 10, units = "in", res = 450)
 par(mar = c(0, 0, 0, 0), xpd = TRUE)
@@ -568,8 +505,7 @@ corrplot(toPlot[plotOrder, plotOrder],
          is.corr = FALSE,
          cl.length = 3)
 
-# the red and blue colours indicate those species pairs for which the support for
-# either a positive or negative association is at least 0.95.
+# save the figure
 jpeg(filename = here("Figures", "PA_Model", "Omega_Plot_Full.jpg"), 
      width = 16, 
      height = 16, 
@@ -619,7 +555,7 @@ positive_pairs = data.frame(
   Species_2 = colnames(PA_model$Y)[idx_pos[, 2]],
   Support   = support[idx_pos])
 
-# quick check to confirm there are no self pairs (A-B B-A)
+# quick double check to confirm there are no self pairs (A-B B-A)
 positive_pairs = positive_pairs %>%
   mutate(sp1 = pmin(Species_1, Species_2),
          sp2 = pmax(Species_1, Species_2)) %>%
@@ -632,7 +568,7 @@ negative_pairs = data.frame(
   Species_2 = colnames(PA_model$Y)[idx_neg[, 2]],
   Support   = support[idx_neg])
 
-# quick check to confirm there are no self pairs (A-B B-A)
+# quick double check to confirm there are no self pairs (A-B B-A)
 negative_pairs = negative_pairs %>%
   mutate(sp1 = pmin(Species_1, Species_2),
          sp2 = pmax(Species_1, Species_2)) %>%
@@ -660,8 +596,8 @@ negative_counts = sort(
 colnames(negative_counts) = c("Species", "N_negative_associations")
 
 ##### butterflyfish interactions #####
-# identify positive residual species-to-species associations involving Chaetodon butterflyfishes
-# keeping only unique pairs (no A-B B-A duplicates)
+# identify positive residual species-to-species associations involving Chaetodon 
+# butterflyfishes keeping only unique pairs (no A-B B-A duplicates)
 positive_chaetodon_pairs = positive_pairs %>% 
   filter(str_detect(Species_1, "Chaetodon\\.") | 
            str_detect(Species_2, "Chaetodon\\.")) %>%
@@ -672,8 +608,8 @@ positive_chaetodon_pairs = positive_pairs %>%
   distinct(sp1, sp2, .keep_all = TRUE) %>%
   select(-sp1, -sp2)
 
-# identify negative residual species-to-species associations involving Chaetodon butterflyfishes
-# keeping only unique pairs (no A-B B-A duplicates)
+# identify negative residual species-to-species associations involving Chaetodon
+# butterflyfishes keeping only unique pairs (no A-B B-A duplicates)
 negative_chaetodon_pairs = negative_pairs %>% 
   filter(str_detect(Species_1, "Chaetodon\\.") | 
            str_detect(Species_2, "Chaetodon\\.")) %>%
@@ -714,6 +650,7 @@ positive_acanthurid_pomacentrid = positive_chaetodon_pairs %>%
        str_detect(Species_2, paste0("^(", paste(target_genera, collapse="|"), ")\\."))) |
       (str_detect(Species_2, "Chaetodon\\.") & 
          str_detect(Species_1, paste0("^(", paste(target_genera, collapse="|"), ")\\."))))
+nrow(positive_acanthurid_pomacentrid)
 
 # negative residual associations
 negative_acanthurid_pomacentrid = negative_chaetodon_pairs %>%
@@ -722,3 +659,4 @@ negative_acanthurid_pomacentrid = negative_chaetodon_pairs %>%
        str_detect(Species_2, paste0("^(", paste(target_genera, collapse="|"), ")\\."))) |
       (str_detect(Species_2, "Chaetodon\\.") & 
          str_detect(Species_1, paste0("^(", paste(target_genera, collapse="|"), ")\\."))))
+nrow(negative_acanthurid_pomacentrid)

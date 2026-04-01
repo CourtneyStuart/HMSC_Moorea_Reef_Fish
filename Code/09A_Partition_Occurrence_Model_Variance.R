@@ -5,13 +5,13 @@
 # install required packages (first run only)
 # install.packages(c("easypackages", "conflicted", "tidyr", "dplyr", "here", "ggplot2",
 #                    "Hmsc", "coda", "corrplot", "Cairo", "stringr", "PNWColors",
-#                    "colorspace", "grDevices", "colorRamps"))
+#                    "colorspace", "grDevices", "colorRamps", "tibble"))
 
 # load packages
 library(easypackages)
 libraries("conflicted", "tidyr", "dplyr", "here", "ggplot2",
           "Hmsc", "coda", "corrplot", "Cairo", "stringr", 
-          "PNWColors", "colorspace", "grDevices", "colorRamps")
+          "PNWColors", "colorspace", "grDevices", "colorRamps", "tibble")
 
 # resolve package conflicts
 conflict_prefer("select", "dplyr")
@@ -27,7 +27,7 @@ sailboat = pnw_palette(name = "Sailboat", n = 8, type = "continuous")
 
 #### DIRECTORIES ####
 # working directory and relative folder path for here()
-#setwd("E:/Data/StuartC_DPhil_Ch3/")
+setwd("E:/Data/StuartC_DPhil_Ch3/")
 #set_here("E:/Data/StuartC_DPhil_Ch3/") # set first-time only
 here::i_am(".here")
 here::here() # verify
@@ -39,8 +39,8 @@ model.directory = here("HMSC", "Models")
 list.files(model.directory)
 
 # read in the results file
-nChains = 2
-samples = 600
+nChains = 4
+samples = 2000
 thin = 100
 filename = file.path(model.directory, 
                      paste0("PA_model_chains_", as.character(nChains),
@@ -57,7 +57,7 @@ make_unique_abbrev = function(names) {
   genus  = sub("\\..*$", "", names)
   species = sub("^[^.]*\\.", "", names)
   n = length(genus)
-  len = rep(1L, n)                        # start with 1-letter abbrev
+  len = rep(1L, n) # start with 1-letter abbrev
   build = function(l) paste0(substr(genus, 1, l), ". ", species)
   
   labels = build(len)
@@ -76,7 +76,7 @@ make_unique_abbrev = function(names) {
 
 species_labels = make_unique_abbrev(PA_model$spNames)
 
-#### FIXED VS. RANDOM SIMPLE ####
+#### FIXED VS. RANDOM ####
 # group all fixed effects together
 group_fixed = rep(1, ncol(PA_model$X))
 
@@ -216,7 +216,7 @@ print(max_FR)
 print(min_FR)
 
 #### GROUPED FIXED EFFECTS ####
-# check model structure
+# check model structure before grouping
 head(PA_model$X)  # fixed effects design matrix
 names(PA_model$rL)  # random effects: should be "site" and "year"
 
@@ -241,7 +241,7 @@ group_names = c("Habitat type", "COTS abundance", "Maximum DHW", "Cyclone exposu
 length(group)  # should be 16
 ncol(PA_model$X)  # should be 16
 
-# compute variance partitioning
+# compute variance partitioning using grouped covariates
 vp_grouped = computeVariancePartitioning(PA_model, 
                                  group = group, 
                                  groupnames = group_names)
@@ -355,6 +355,7 @@ legend(
 dev.off()
 
 # save the grouped variance partitioning results as a csv file
+require(tibble)
 vp_grouped_transposed = vp_grouped_vals %>%
   t() %>%
   as.data.frame() %>%

@@ -18,7 +18,7 @@ libraries("here", "Hmsc", "tidyr", "dplyr", "ggplot2", "coda")
 
 #### DIRECTORIES ####
 # working directory and relative folder path for here()
-#setwd("E:/Data/StuartC_DPhil_Ch3/")
+setwd("E:/Data/StuartC_DPhil_Ch3/")
 #set_here("E:/Data/StuartC_DPhil_Ch3/") # set first-time only
 here::i_am(".here")
 here::here() # verify
@@ -59,13 +59,13 @@ PA_model = Hmsc(Y = Y_PA,
                 distr = "probit")
 
 #### MCMC SETTINGS ####
-nParallel = 2
-nChains = 2
-samples = 300 # 300 samples per chain = 600 total
+nParallel = 4
+nChains = 4
+samples = 500 # 500 samples per chain = 2000 total
 thin = 100
 transient = 5000
 # total iterations per chain = transient + (samples * thin) = 
-# 5000 + 30000 = 35000
+# 55000 iterations = 5000 transient + (500 samples * 100 thin)
 
 ##### PA Model #####
 cat("PA Model - thin =", thin, ", transient =", transient, "\n")
