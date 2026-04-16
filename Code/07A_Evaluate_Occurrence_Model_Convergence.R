@@ -42,7 +42,7 @@ list.files(model.directory)
 
 # read in the results file
 nChains = 4
-samples = 2000
+samples = 1000
 thin = 100
 filename = file.path(model.directory, 
                      paste0("PA_model_chains_", as.character(nChains),
@@ -63,7 +63,7 @@ summary(es.beta) # look at the spread of effective sample sizes
 low.es.beta = es.beta[es.beta < 100]
 print(low.es.beta)
 
-# interesting, there seems to be a localized issue with 7 parameters 
+# interesting, there seems to be a localized issue with 8 parameters 
 # for Neocirrhites.armatus
 
 # is this a problem relating to species rarity?
@@ -91,7 +91,7 @@ low.es.beta
 # beta estimates is reduced.
 
 # to look at all omega PSRFs we run the line below; however, we have many
-# species pairs (with 143 unique species) so this takes a lot of time and 
+# species pairs (with 142 unique species) so this takes a lot of time and 
 # computational effort!!!
 #psrf.omega = gelman.diag(mpost$Omega[[1]], multivariate = FALSE)$psrf
 
@@ -309,7 +309,7 @@ ggplot(df_beta_sample,
 
 ggsave(plot = last_plot(),
        filename = here("Figures", "PA_Model",
-                       "Beta_Trace_Random_Sample_4Chains_2000Samples_100Thin.jpg"),
+                       "Beta_Trace_Random_Sample_4Chains_1000Samples_100Thin.jpg"),
        width = 8, height = 10, units = "in", dpi = 300)
 
 # look at a few random species from the community as examples...
@@ -336,7 +336,7 @@ ggplot(df_beta_sp1,
 
 ggsave(plot = last_plot(),
        filename = here("Figures", "PA_Model",
-                       "Beta_Trace_A_septemfasciatus_4Chains_2000Samples_100Thin.jpg"),
+                       "Beta_Trace_A_septemfasciatus_4Chains_1000Samples_100Thin.jpg"),
        width = 8, height = 10, units = "in", dpi = 300)
 
 # look at all parameters for Acanthurus.triostegus
@@ -361,7 +361,7 @@ ggplot(df_beta_sp2,
 
 ggsave(plot = last_plot(),
        filename = here("Figures", "PA_Model",
-                       "Beta_Trace_A_triostegus_4Chains_2000Samples_100Thin.jpg"),
+                       "Beta_Trace_A_triostegus_4Chains_1000Samples_100Thin.jpg"),
        width = 8, height = 10, units = "in", dpi = 300)
 
 # look at all parameters for Scarus.altipinnis
@@ -386,5 +386,5 @@ ggplot(df_beta_sp3,
 
 ggsave(plot = last_plot(),
        filename = here("Figures", "PA_Model",
-                       "Beta_Trace_S_altipinnis_4Chains_2000Samples_100Thin.jpg"),
+                       "Beta_Trace_S_altipinnis_4Chains_1000Samples_100Thin.jpg"),
        width = 8, height = 10, units = "in", dpi = 300)

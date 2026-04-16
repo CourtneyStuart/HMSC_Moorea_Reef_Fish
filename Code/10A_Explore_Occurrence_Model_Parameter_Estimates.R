@@ -40,7 +40,7 @@ list.files(model.directory)
 
 # read in the results file
 nChains = 4
-samples = 2000
+samples = 1000
 thin = 100
 filename = file.path(model.directory, 
                      paste0("PA_model_chains_", as.character(nChains),
@@ -118,7 +118,7 @@ dev.off()
 
 # use numeric indices instead of species names to define groups
 group1 = rev(1:72)
-group2 = rev(73:143)
+group2 = rev(73:142)
 
 # create and save the first beta plot
 jpeg(filename = here("Figures", "PA_Model", "Beta_Plot_1.jpg"), 
@@ -301,43 +301,6 @@ for (v in vars) {
 }
 
 #### TRAIT SIGNALS ####
-str(mpost, max.level = 1)
-
-PA_model$nt
-PA_model$phyloTree
-PA_model$TrFormula
-
-if("Gamma" %in% names(mpost)) {
-  gamma_params = mpost$Gamma
-    gamma_params = as.mcmc.list(gamma_params)
-    library(coda)
-  psrf.gamma = gelman.diag(gamma_params, multivariate = FALSE)
-}
-
-gamma_params = mpost$Gamma
-psrf.gamma = gelman.diag(gamma_params, multivariate = FALSE)
-
-summary(psrf.gamma$psrf)
-max((psrf.gamma$psrf)[, "Point est."])
-
-# simple histogram
-par(mfrow = c(1,1))
-hist((psrf.gamma$psrf)[, "Point est."], xlab = "psrf (Gamma)", main = NULL,
-     xlim = c((min((psrf.gamma$psrf)[, "Point est."])-0.05), 
-              (max((psrf.gamma$psrf)[, "Point est."])+0.05)))
-abline(v = 1.1, col = "black", lty = "dashed")
-
-# what percentage of the gamma point estimates are <= 1.1?
-round((sum((psrf.gamma$psrf)[, "Point est."] <= 1.1) / length((psrf.gamma$psrf)[, "Point est."]) * 100),
-      digits = 2)
-
-# what percentage of the gamma upper CI estimates are <= 1.1? (stricter assessment)
-round((sum((psrf.gamma$psrf)[, "Upper C.I."] <= 1.1) / length((psrf.gamma$psrf)[, "Upper C.I."]) * 100),
-      digits = 2)
-
-es.gamma = effectiveSize(gamma_params)
-print(summary(es.gamma))
-
 # examine if the species niches are linked to their traits with a gamma plot
 postGamma = getPostEstimate(PA_model, parName = "Gamma")
 plotGamma(PA_model, 
@@ -371,14 +334,13 @@ dev.off()
 # they explain among the responses of the species to the environmental covariates:
 vp_ungrouped = computeVariancePartitioning(PA_model)
 vp_ungrouped$R2T$Beta
-(vp_ungrouped$R2T$Beta)*100 # as a percentage, rather than proportion
-
+round(((vp_ungrouped$R2T$Beta)*100), 2) # as a percentage, rather than proportion
 
 # these results are consistent with the above figures: the traits explain only a very 
 # minor part of the variation. the same negative result is obtained also in the sense
 # that traits explain only a negligible proportion of variation in species' occurrence:
 vp_ungrouped$R2T$Y
-(vp_ungrouped$R2T$Y)*100 # as a percentage, rather than proportion
+round(((vp_ungrouped$R2T$Y)*100), 2) # as a percentage, rather than proportion
 
 #### PHYLOGENETIC SIGNAL ####
 # next evaluate the posterior distribution of the phylogenetic signal in species niches.
@@ -407,7 +369,7 @@ ggplot(data.frame(Rho = rho_samples_flat), aes(x = Rho)) +
 
 # these results indicate a moderate phylogenetic signal - closely related
 # species tend to respond similarly to environmental conditions. about 
-# 66% of the variation in species' niches can be attributed to shared evolutionary 
+# 51% of the variation in species' niches can be attributed to shared evolutionary 
 # history (BUT NOTE that this assumes we are not missing any important environmental
 # covariates or functional traits).
 

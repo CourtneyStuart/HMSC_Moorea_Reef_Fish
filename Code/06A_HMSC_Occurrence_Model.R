@@ -61,11 +61,13 @@ PA_model = Hmsc(Y = Y_PA,
 #### MCMC SETTINGS ####
 nParallel = 4
 nChains = 4
-samples = 500 # 500 samples per chain = 2000 total
+# samples = 500 # 500 samples per chain = 2000 total
+samples = 250 # 250 samples per chain = 1000 total
 thin = 100
 transient = 5000
 # total iterations per chain = transient + (samples * thin) = 
 # 55000 iterations = 5000 transient + (500 samples * 100 thin)
+# 30000 iterations = 5000 transient + (250 samples * 100 thin)
 
 ##### PA Model #####
 cat("PA Model - thin =", thin, ", transient =", transient, "\n")
@@ -80,7 +82,7 @@ PA_model = sampleMcmc(PA_model,
                       nChains = nChains, 
                       nParallel = nParallel,
                       initPar = "fixed effects",
-                      verbose = 100)
+                      verbose = 1000)
 end_time = Sys.time()
 
 cat("Completed in:", difftime(end_time, start_time, units = "mins"), "minutes\n")

@@ -5,16 +5,18 @@
 # install packages (first run only)
 # install.packages(c("easypackages", "conflicted", "dplyr", "here", "ggplot2", 
 #                    "ape", "data.tree", "tidyverse", "rfishbase", "stringdist", 
-#                    "purrr", "tictoc", "stringr"))
+#                    "purrr", "tictoc", "stringr", "fishtree"))
 
 # load packages
 library(easypackages)
 libraries("conflicted", "dplyr", "here", "ggplot2", "ape", "data.tree", 
-          "tidyverse", "rfishbase", "stringdist", "purrr", "tictoc", "stringr")
+          "tidyverse", "rfishbase", "stringdist", "purrr", "tictoc",
+          "stringr", "fishtree")
 
 # resolve package conflicts
 conflict_prefer("select", "dplyr")
 conflict_prefer("filter", "dplyr")
+conflict_prefer("where", "dplyr")
 
 #### DIRECTORIES ####
 # working directory and relative folder path for here()
@@ -123,8 +125,7 @@ near_duplicates = similar_names %>%
   rowwise() %>%
   mutate(
     Name1 = min(as.character(Var1), as.character(Var2)),
-    Name2 = max(as.character(Var1), as.character(Var2))
-  ) %>%
+    Name2 = max(as.character(Var1), as.character(Var2))) %>%
   ungroup() %>%
   distinct(Name1, Name2, .keep_all = TRUE) %>%
   arrange(Freq)
@@ -867,13 +868,72 @@ dev.off()
 # save the tree as a .tre file (Newick format)
 write.tree(phylo_tree_filtered, file = here("Data", "Fish", "Filtered_LTER_Taxonomic_Tree.tre"))
 
-# final step! we need to now go back to the MCR LTER survey data and keep only 
-# those species that we have taxonomic and trait data for! 
+#### WHAT IF WE USE PHYLOGENETIC DATA INSTEAD OF TAXONOMIC DATA ####
+require(fishtree)
+
+# get the list of species from the filtered taxonomic tree (i.e., those species
+# for which we have adequate occurrence data and trait data)
+sp = taxo_filtered$speciesbinomial
+
+# do they all have phylogenetic data available in the fish tree of life?
+sp_with_phylo = fishtree_alignment(species = sp, split = FALSE)
+
+# are the Pycnochromis not available because they're actually labelled  as
+# their Chromis synonyms in the fish tree of life?
+chromis_check = fishtree_alignment(
+  species = c("Chromis acares", "Chromis iomelas", 
+              "Chromis margaritifer", "Chromis vanderbilti"), 
+  split = FALSE)
+
+# ah yes, ok, we want to keep the Chromis phylogenetic data then. for now,
+# use Chromis as the genus label, then return to the Pycnochromis label used by
+# MCR LTER surveys after constructing the tree
+sp[sp %in% c(
+  "Pycnochromis iomelas",
+  "Pycnochromis margaritifer",
+  "Pycnochromis acares",
+  "Pycnochromis vanderbilti")] = sub(
+    "Pycnochromis", "Chromis",
+    sp[sp %in% c(
+            "Pycnochromis iomelas",
+            "Pycnochromis margaritifer",
+            "Pycnochromis acares",
+            "Pycnochromis vanderbilti")])
+
+# now build the tree with quantitative phylogenetic data
+true_phylo_tree = fishtree_phylogeny(species = sp, type = "chronogram")
+
+# check the format of the tip labels
+head(true_phylo_tree$tip.label, 5)
+
+# first, replace Chromis with Pycnochromis again
+idx = true_phylo_tree$tip.label %in% c(
+  "Chromis_iomelas",
+  "Chromis_margaritifer",
+  "Chromis_acares",
+  "Chromis_vanderbilti")
+
+true_phylo_tree$tip.label[idx] = sub("Chromis", "Pycnochromis", true_phylo_tree$tip.label[idx])
+
+# now, replace the _ separator between genus and species with a blank space to match
+# the format of the MCR LTER data
+true_phylo_tree$tip.label = gsub("_", " ", true_phylo_tree$tip.label)
+
+# check the format just to be sure
+head(true_phylo_tree$tip.label, 5)
+
+#### FINAL STEPS ####
+# we need to now go back to the MCR LTER survey data and keep only 
+# those species for which we have all the necessary data!
 # get species names from columns 4 to end
 species_from_transects = names(aggregate_data_PA_wide)[4:ncol(aggregate_data_PA_wide)]
 
 # keep only species that are in traits_all$Species
 species_to_keep = species_from_transects[species_from_transects %in% traits_all$Species]
+
+# keep only species that are in true_phylo_tree
+species_to_keep = species_from_transects[species_from_transects %in% 
+                                           true_phylo_tree$tip.label]
 
 # filter the PA and Abundance dataframes
 aggregate_data_PA_wide = aggregate_data_PA_wide %>%
@@ -895,18 +955,23 @@ aggregate_data_ABU_wide = aggregate_data_ABU_wide %>%
 
 #### SAVING DATASETS FOR MODELLING ####
 write.csv(aggregate_data_PA_wide,
-          here("HMSC", "Data", "Intermediate_Datasets", "Fish_Presence_Absence_Dataset.csv"),
+          here("HMSC", "Data", "Intermediate_Datasets",
+               "Fish_Presence_Absence_Dataset.csv"),
           row.names = FALSE)
 write.csv(aggregate_data_ABU_wide,
-          here("HMSC", "Data", "Intermediate_Datasets", "Fish_Abundance_Dataset.csv"),
+          here("HMSC", "Data", "Intermediate_Datasets",
+               "Fish_Abundance_Dataset.csv"),
           row.names = FALSE)
 write.csv(traits_all,
-          here("HMSC", "Data", "Intermediate_Datasets", "Fish_Traits_Dataset.csv"),
+          here("HMSC", "Data", "Intermediate_Datasets",
+               "Fish_Traits_Dataset.csv"),
           row.names = FALSE)
-write.tree(phylo_tree_filtered, 
-           file = here("HMSC", "Data", "Intermediate_Datasets", "Fish_Taxonomic_Tree.tre"))
+write.tree(true_phylo_tree, 
+           file = here("HMSC", "Data", "Intermediate_Datasets",
+                       "Fish_Phylogenetic_Tree.tre"))
 
 # save R data with these final datasets
 save(list = c("aggregate_data_PA_wide", "aggregate_data_ABU_wide",
-              "traits_all", "phylo_tree_filtered", "species_to_keep"),
-     file = here("Code", "Prepped_Community_Taxonomy_Trait_Data.RData"))
+              "traits_all", "true_phylo_tree", "species_to_keep"),
+     file = here("HMSC", "Data", "Intermediate_Datasets",
+                 "Prepped_Community_Phylogeny_Trait_Data.RData"))

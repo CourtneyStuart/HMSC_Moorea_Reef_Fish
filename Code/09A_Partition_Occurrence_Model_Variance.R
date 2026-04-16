@@ -40,7 +40,7 @@ list.files(model.directory)
 
 # read in the results file
 nChains = 4
-samples = 2000
+samples = 1000
 thin = 100
 filename = file.path(model.directory, 
                      paste0("PA_model_chains_", as.character(nChains),
@@ -125,9 +125,14 @@ rownames(FR_long) = NULL
 FR_long = FR_long[, c("Species", "Component", "Variance")]
 
 # how many species had greater than one-third of variance captured by random effects?
-random_sp = FR_long %>%
+random_sp_third = FR_long %>%
   filter(Component == "Random effects" &
            Variance >= (1/3))
+
+# how many species had greater than one-half of variance captured by random effects?
+random_sp_half = FR_long %>%
+  filter(Component == "Random effects" &
+           Variance >= (1/2))
 
 # choose colors for plotting
 cols = c("blue4", "darkorange")  # blue = fixed, orange = random
@@ -250,6 +255,8 @@ vp_grouped = computeVariancePartitioning(PA_model,
 vp_grouped$vals  # variance proportion for each group and species
 vp_grouped$R2T   # R2T gives the variance among species explained by traits, measured for 
 # species' responses to covariates ($R2T$Beta) and species occurrences ($R2T$Y)
+round(mean(vp_grouped$R2T$Beta), digits = 2)
+round(mean(vp_grouped$R2T$Y), digits = 2)
 
 # plot variance partitioning
 par(mfrow = c(1, 1))
@@ -372,8 +379,11 @@ vp_ungrouped = computeVariancePartitioning(PA_model)
 
 # examine results
 vp_ungrouped$vals # variance proportion for each variable and species
-vp_ungrouped$R2T # R2T gives the variance among species explained by traits, measured for 
-# species' responses to covariates ($R2T$Beta) and species occurrences ($R2T$Y)
+
+# these will be the same as for vp_grouped above
+# vp_ungrouped$R2T
+# round(mean(vp_grouped$R2T$Beta), digits = 2) 
+# round(mean(vp_grouped$R2T$Y), digits = 2)
 
 plotVariancePartitioning(PA_model, VP = vp_ungrouped)
 

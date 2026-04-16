@@ -6,18 +6,19 @@
 # install.packages(c("here", "easypackages", "raster", "terra", "sp", "sf",
 #                    "conflicted", "spatialEco", "dplyr", "ggplot2", "tidyr",
 #                    "purrr", "stringr", "corrplot", "Cairo", "usdm",
-#                    "PNWColors", "ape", "Hmsc"))
+#                    "PNWColors", "ape", "Hmsc", "fishtree"))
 
 # load packages
 library(easypackages)
 libraries("here", "raster", "terra", "sp", "sf", "conflicted", "spatialEco",
           "dplyr", "ggplot2", "tidyr", "purrr", "stringr", "corrplot", "Cairo", 
-          "usdm", "PNWColors", "ape", "Hmsc")
+          "usdm", "PNWColors", "ape", "Hmsc", "fishtree")
 
 # resolve package conflicts
 conflict_prefer("terrain", "terra")
 conflict_prefer("select", "dplyr")
 conflict_prefer("filter", "dplyr")
+conflict_prefer("where", "dplyr")
 
 # additional settings
 rasterOptions(progress = 'text') # progress info for processing large rasters
@@ -41,13 +42,13 @@ gcs = CRS("+proj=longlat +datum=WGS84 +no_defs +type=crs")
 
 #### DATA PROCESSING ####
 # read in our datasets
-fish_PA = read.csv(here("HMSC", "Data", "Intermediate_Datasets", 
+fish_PA = read.csv(here("HMSC", "Data", "Intermediate_Datasets",
                         "Fish_Presence_Absence_Dataset.csv"))
 
-fish_ABU = read.csv(here("HMSC", "Data", "Intermediate_Datasets", 
-                        "Fish_Abundance_Dataset.csv"))
+fish_ABU = read.csv(here("HMSC", "Data", "Intermediate_Datasets",
+                         "Fish_Abundance_Dataset.csv"))
 
-spatenv = read.csv(here("HMSC", "Data", "Intermediate_Datasets", 
+spatenv = read.csv(here("HMSC", "Data", "Intermediate_Datasets",
                         "Full_Spatial_Environmental_Dataset.csv"))
 
 traits = read.csv(here("HMSC", "Data", "Intermediate_Datasets",
@@ -55,7 +56,7 @@ traits = read.csv(here("HMSC", "Data", "Intermediate_Datasets",
   mutate(Species = gsub(" ", ".", Species)) # format Genus.species
 
 tree = read.tree(here("HMSC", "Data", "Intermediate_Datasets", 
-                      "Fish_Taxonomic_Tree.tre"))
+                      "Fish_Phylogenetic_Tree.tre"))
 
 # check how species names are stored in our taxonomic tree
 tree$tip.label
@@ -198,7 +199,7 @@ data_ABU = data_ABU %>%
 
 #### CREATING REQUIRED HMSC INPUTS ####
 ##### Y species data #####
-species_cols = 17:159 # species column numbers from data_PA
+species_cols = 17:158 # species column numbers from data_PA
 
 # presence-absence matrix
 Y_PA = as.matrix(data_PA[, species_cols])
@@ -396,3 +397,8 @@ write.csv(master_PA,
 write.csv(master_ABU,
           here("HMSC", "Data", "Master_Abundance_Dataset.csv"),
           row.names = FALSE)
+
+svg(here("HMSC", "Data", "Filtered_LTER_Phylogenetic_Tree.svg"),
+    width = 20, height = 40)
+plot.phylo(tree, cex = 0.75, show.node.label = TRUE, show.tip.label = TRUE)
+dev.off()

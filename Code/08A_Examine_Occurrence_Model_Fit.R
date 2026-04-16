@@ -40,7 +40,7 @@ list.files(model.directory)
 
 # read in the results file
 nChains = 4
-samples = 2000
+samples = 1000
 thin = 100
 filename = file.path(model.directory, 
                      paste0("PA_model_chains_", as.character(nChains),
@@ -109,10 +109,10 @@ jpeg(filename = here("Figures", "PA_Model", "AUC_and_TjurR2_In_Sample_Predictive
      units = "in",
      res = 450)
 par(mfrow = c(1,2))
-hist(MF_predictive$AUC, xlab = expression("AUC"~"(predictive)"), main = NULL,
+hist(MF_predictive$AUC, xlab = expression("AUC"~"(in-sample posterior predictive)"), main = NULL,
      xlim = c(0,1), col = bay[2])
 abline(v = 0.5, col = "black", lty = "dashed")
-hist(MF_predictive$TjurR2, xlab = expression("Tjur R"^2~"(predictive)"), main = NULL,
+hist(MF_predictive$TjurR2, xlab = expression("Tjur R"^2~"(in-sample posterior predictive)"), main = NULL,
      xlim = c(0,1), col = bay[2])
 abline(v = 0, col = "black", lty = "dashed")
 dev.off()
@@ -140,10 +140,10 @@ abline(v = 0.5, col = "black", lty = "dashed")
 hist(MF_fit$TjurR2, xlab = expression("Tjur R"^2~"(explanatory)"), main = NULL,
      xlim = c(0,1), col = bay[1])
 abline(v = 0, col = "black", lty = "dashed")
-hist(MF_predictive$AUC, xlab = expression("AUC"~"(predictive)"), main = NULL,
+hist(MF_predictive$AUC, xlab = expression("AUC"~"(in-sample posterior predictive)"), main = NULL,
      xlim = c(0,1), col = bay[3])
 abline(v = 0.5, col = "black", lty = "dashed")
-hist(MF_predictive$TjurR2, xlab = expression("Tjur R"^2~"(predictive)"), main = NULL,
+hist(MF_predictive$TjurR2, xlab = expression("Tjur R"^2~"(in-sample posterior predictive)"), main = NULL,
      xlim = c(0,1), col = bay[3])
 abline(v = 0, col = "black", lty = "dashed")
 dev.off()
