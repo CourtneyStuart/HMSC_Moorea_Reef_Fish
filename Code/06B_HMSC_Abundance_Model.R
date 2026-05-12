@@ -18,7 +18,7 @@ libraries("here", "Hmsc", "tidyr", "dplyr", "ggplot2", "coda")
 
 #### DIRECTORIES ####
 # working directory and relative folder path for here()
-#setwd("E:/Data/StuartC_DPhil_Ch3/")
+setwd("E:/Data/StuartC_DPhil_Ch3/")
 #set_here("E:/Data/StuartC_DPhil_Ch3/") # set first-time only
 here::i_am(".here")
 here::here() # verify
@@ -38,8 +38,8 @@ summary(trait_hmsc)
 # or wise to include them as the estimates would have extremely high uncertainty. 
 # exclude these three traits from the models...
 
-#### DEFINE THE MODELS ####
-# define the abundance model
+#### RAW ABUNDANCE MODEL ####
+##### DEFINE THE MODEL #####
 ABU_model = Hmsc(Y = Y_ABU,
                  XData = as.data.frame(X_scaled),
                  # specify which predictors to use
@@ -58,16 +58,18 @@ ABU_model = Hmsc(Y = Y_ABU,
                                   year = rL.year),
                  distr = "lognormal poisson")
 
-#### MCMC SETTINGS ####
-nParallel = 2
-nChains = 2
-samples = 300 # 300 samples per chain = 600 total
+##### MCMC SETTINGS #####
+nParallel = 4
+nChains = 4
+# samples = 500 # 500 samples per chain = 2000 total
+samples = 250 # 250 samples per chain = 1000 total
 thin = 100
 transient = 5000
 # total iterations per chain = transient + (samples * thin) = 
-# 5000 + 30000 = 35000
+# 55000 iterations = 5000 transient + (500 samples * 100 thin)
+# 30000 iterations = 5000 transient + (250 samples * 100 thin)
 
-##### ABU Model #####
+##### RUN THE MODEL #####
 cat("ABU Model - thin =", thin, ", transient =", transient, "\n")
 cat("Total iterations per chain:", transient + (samples * thin), "\n")
 cat("Total posterior samples:", samples * nChains, "\n\n")
@@ -79,15 +81,86 @@ ABU_model = sampleMcmc(ABU_model,
                        transient = transient,
                        nChains = nChains, 
                        nParallel = nParallel,
-                       initPar = "fixed effects")
+                       initPar = "fixed effects",
+                       verbose = 1000)
 end_time = Sys.time()
 
 cat("Completed in:", difftime(end_time, start_time, units = "mins"), "minutes\n")
 
-# save outputs
+##### SAVE THE OUTPUTS #####
 filename = file.path(model_directory, 
                      paste0("ABU_model_chains_", nChains, 
                             "_samples_", samples * nChains,  # total samples
                             "_thin_", thin, ".rda"))
 save(ABU_model, file = filename)
+cat("Saved:", filename, "\n\n")
+
+#### CONDITIONAL ABUNDANCE MODEL ####
+##### CREATE CONDITIONAL ABUNDANCE DATA #####
+# Convert zeros to NA (i.e., abundance conditional on presence)
+Y_ABU_conditional = Y_ABU
+Y_ABU_conditional[Y_ABU_conditional == 0] = NA
+
+##### DEFINE THE MODEL #####
+ABU_conditional_model = Hmsc(
+  Y = Y_ABU_conditional,
+  XData = as.data.frame(X_scaled),
+  XFormula = ~ HabitatForereef + HabitatFringing + COTS +
+    Max_DHW + Cyclone1 + Cyclone2 + Cyclone3 + Land_Dist + 
+    Depth_Mean_100m + Depth_Mean_500m +
+    Curvature_Mean_100m + Curvature_Mean_500m +
+    Coral_Mean_Cover + Macroalgae_Mean_Cover + CTB_Mean_Cover,
+  TrData = trait_hmsc,
+  TrFormula = ~ Body_Shape + Max_TL_cm + Trophic_Level +
+    Reproductive_Mode + Spawn_Agg,
+  phyloTree = tree,
+  studyDesign = study_design,
+  ranLevels = list(site = rL.site, 
+                   year = rL.year),
+  distr = "lognormal poisson"
+)
+
+##### MCMC SETTINGS #####
+nParallel = 4
+nChains = 4
+# samples = 500 # 500 samples per chain = 2000 total
+samples = 250 # 250 samples per chain = 1000 total
+thin = 100
+transient = 5000
+# total iterations per chain = transient + (samples * thin) = 
+# 55000 iterations = 5000 transient + (500 samples * 100 thin)
+# 30000 iterations = 5000 transient + (250 samples * 100 thin)
+
+##### RUN THE MODEL #####
+cat("ABU conditional model - thin =", thin, ", transient =", transient, "\n")
+cat("Total iterations per chain:", transient + (samples * thin), "\n")
+cat("Total posterior samples:", samples * nChains, "\n\n")
+
+start_time = Sys.time()
+
+ABU_conditional_model = sampleMcmc(
+  ABU_conditional_model, 
+  thin = thin, 
+  samples = samples, 
+  transient = transient,
+  nChains = nChains, 
+  nParallel = nParallel,
+  initPar = "fixed effects",
+  verbose = 1000
+)
+
+end_time = Sys.time()
+
+cat("Completed in:", difftime(end_time, start_time, units = "mins"), "minutes\n")
+
+##### SAVE THE OUTPUTS #####
+filename = file.path(
+  model_directory, 
+  paste0("ABU_conditional_model_chains_", nChains, 
+         "_samples_", samples * nChains,
+         "_thin_", thin, ".rda")
+)
+
+save(ABU_conditional_model, file = filename)
+
 cat("Saved:", filename, "\n\n")
