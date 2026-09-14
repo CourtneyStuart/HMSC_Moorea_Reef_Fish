@@ -20,7 +20,7 @@ conflict_prefer("where", "dplyr")
 
 #### DIRECTORIES ####
 # working directory and relative folder path for here()
-#setwd("E:/Data/StuartC_DPhil_Ch3/")
+setwd("E:/Data/StuartC_DPhil_Ch3/")
 #set_here("E:/Data/StuartC_DPhil_Ch3/") # set first-time only
 here::i_am(".here")
 here::here() # verify
@@ -315,20 +315,87 @@ if (nrow(inconsistencies) == 0) {
 # the aggregate PA and aggregate ABU wide dataframes now include all possible species, 
 # before accounting for prevalence/rarity or traits.
 
-#### FILTERING BASED ON # OF OBSERVATIONS/RARITY ####
+gc() 
 
+#### FILTERING BASED ON # OF OBSERVATIONS/RARITY ####
+# # identify columns containing "sp. [number]" or "spp."
+# cols_to_remove = names(aggregate_data_PA_wide)[
+#   grepl("\\bsp\\.\\s*[0-9]+|\\bspp\\.", 
+#         names(aggregate_data_PA_wide), 
+#         ignore.case = TRUE)]
+# # species columns start at column 4
+# species_cols = names(aggregate_data_PA_wide)[4:ncol(aggregate_data_PA_wide)]
+# 
+# # --------------------------------------------------
+# # STEP 1: species present fewer than 10 times
+# # --------------------------------------------------
+# 
+# species_counts = colSums(
+#   aggregate_data_PA_wide[, species_cols],
+#   na.rm = TRUE
+# )
+# 
+# dropped_fewer_than_10 = names(species_counts[species_counts < 10])
+# 
+# n_dropped_fewer_than_10 = length(dropped_fewer_than_10)
+# 
+# # --------------------------------------------------
+# # STEP 2: species present in <10% of sampling units
+# # --------------------------------------------------
+# 
+# occurrence_rates = colSums(
+#   aggregate_data_PA_wide[, species_cols],
+#   na.rm = TRUE
+# ) / nrow(aggregate_data_PA_wide)
+# 
+# dropped_less_than_10_percent = names(
+#   occurrence_rates[occurrence_rates < 0.10]
+# )
+# 
+# n_dropped_less_than_10_percent = length(dropped_less_than_10_percent)
+# 
+# # --------------------------------------------------
+# # OVERLAP between the two criteria
+# # --------------------------------------------------
+# 
+# overlap = intersect(
+#   dropped_fewer_than_10,
+#   dropped_less_than_10_percent
+# )
+# 
+# n_overlap = length(overlap)
+# 
+# # Species dropped by each criterion only
+# n_fewer_than_10_only = length(
+#   setdiff(dropped_fewer_than_10, dropped_less_than_10_percent)
+# )
+# 
+# n_less_than_10_percent_only = length(
+#   setdiff(dropped_less_than_10_percent, dropped_fewer_than_10)
+# )
+# 
+# # --------------------------------------------------
+# # SUMMARY
+# # --------------------------------------------------
+# 
+# cat("Species present fewer than 10 times:", n_dropped_fewer_than_10, "\n")
+# cat("Species present in <10% of sampling units:", n_dropped_less_than_10_percent, "\n")
+# cat("Species meeting both exclusion criteria:", n_overlap, "\n")
+# cat("Species meeting only the <10 occurrences criterion:", n_fewer_than_10_only, "\n")
+# cat("Species meeting only the <10% occurrence criterion:", n_less_than_10_percent_only, "\n")
+######
 # filter the data further to remove species that were observed less than 10 times
 aggregate_data_PA_wide = aggregate_data_PA_wide %>%
   select(1:3, 
          all_of(names(.)[4:418][colSums(.[4:418], na.rm = TRUE) >= 10]))
 
 # filter species based on occurrence frequency --> they should present at at least 10% of 
-# sampling units, but no more than 90%. this removes too rare and too ubiquitous species. 
+# sampling units. this removes species that are too rare to model accurately.  
 aggregate_data_PA_wide = aggregate_data_PA_wide %>%
   select(1:3, 
          where(~ if(is.numeric(.x)) {
            occurrence_rate = sum(.x, na.rm = TRUE) / nrow(aggregate_data_PA_wide)
-           occurrence_rate >= 0.10 & occurrence_rate <= 0.90} else {
+           occurrence_rate >= 0.10} else {
            TRUE  # keep columns Year, Site, Habitat
          }))
 
@@ -343,6 +410,8 @@ rm(list = c("all_transect_species", "existing_nums", "inconsistencies", "transec
 
 # here are the species once accounting for rarity
 species_names = names(aggregate_data_PA_wide)[4:ncol(aggregate_data_PA_wide)]
+
+gc()
 
 #### TAXONOMIC DATA ####
 # read in the taxonomic information provided by the MCR LTER program
@@ -510,22 +579,25 @@ lost_taxa = as.data.frame(setdiff(species_names, taxo$speciesbinomial))
 rm(list = c("lost_taxa", "blennies", "existing_nums", "near_duplicates",
             "similar_names", "dist_matrix", "dist_matrix_named", "unnumbered_sp"))
 
-# now build a taxonomic tree from the taxonomic paths
-taxo$path = apply(taxo, 1, function(x) paste(na.omit(x), collapse = ";"))
-taxo$pathString = paste("Life", taxo$phylum, taxo$subphylum, taxo$infraphylum,
-                        taxo$class, taxo$subclass, taxo$division, taxo$subdivision,
-                        taxo$order, taxo$family, taxo$genus,
-                        taxo$speciesbinomial, sep = "/")
-taxo_tree = as.Node(taxo, pathName = "pathString")
-phylo_tree = as.phylo.Node(taxo_tree)
+# # now build a taxonomic tree from the taxonomic paths
+# taxo$path = apply(taxo, 1, function(x) paste(na.omit(x), collapse = ";"))
+# taxo$pathString = paste("Life", taxo$phylum, taxo$subphylum, taxo$infraphylum,
+#                         taxo$class, taxo$subclass, taxo$division, taxo$subdivision,
+#                         taxo$order, taxo$family, taxo$genus,
+#                         taxo$speciesbinomial, sep = "/")
+# taxo_tree = as.Node(taxo, pathName = "pathString")
+# phylo_tree = as.phylo.Node(taxo_tree)
+# plot.phylo(phylo_tree, cex = 0.75, show.node.label = TRUE, show.tip.label = TRUE)
 
-# save the taxonomic tree for the full LTER dataset (before considering traits)
-svg(here("Figures", "Full_LTER_Taxonomic_Tree.svg"), width = 20, height = 40)
-plot.phylo(phylo_tree, cex = 0.75, show.node.label = TRUE, show.tip.label = TRUE)
-dev.off()
+# # save the taxonomic tree for the full LTER dataset (before considering traits)
+# svg(here("Figures", "Full_LTER_Taxonomic_Tree.svg"), width = 20, height = 40)
+# plot.phylo(phylo_tree, cex = 0.75, show.node.label = TRUE, show.tip.label = TRUE)
+# dev.off()
+# 
+# # save the tree as a .tre file (Newick format)
+# write.tree(phylo_tree, file = here("Data", "Fish", "FULL_LTER_Taxonomic_Tree.tre"))
 
-# save the tree as a .tre file (Newick format)
-write.tree(phylo_tree, file = here("Data", "Fish", "FULL_LTER_Taxonomic_Tree.tre"))
+gc()
 
 #### TRAITS ####
 # download different trait tables, using our species list and the rfishbase package
@@ -852,21 +924,24 @@ length(unique(traits_species$Species)) - length(unique(traits_all$Species))
 length(unique(traits_ecology$Species)) - length(unique(traits_all$Species))
 length(unique(traits_reproduction$Species)) - length(unique(traits_all$Species))
 
-# filter the taxo dataframe to keep only species for which trait data are available
+# # filter the taxo dataframe to keep only species for which trait data are available
 taxo_filtered = taxo %>%
   filter(speciesbinomial %in% traits_all$Species)
+# 
+# # make a new taxonomic tree
+# taxo_tree_filtered = as.Node(taxo_filtered, pathName = "pathString")
+# phylo_tree_filtered = as.phylo.Node(taxo_tree_filtered)
+# plot.phylo(phylo_tree_filtered, cex = 0.75, show.node.label = TRUE, show.tip.label = TRUE)
 
-# make a new taxonomic tree
-taxo_tree_filtered = as.Node(taxo_filtered, pathName = "pathString")
-phylo_tree_filtered = as.phylo.Node(taxo_tree_filtered)
+# # save the graphic
+# svg(here("Figures", "Filtered_LTER_Taxonomic_Tree.svg"), width = 20, height = 40)
+# plot.phylo(phylo_tree_filtered, cex = 0.75, show.node.label = TRUE, show.tip.label = TRUE)
+# dev.off()
+# 
+# # save the tree as a .tre file (Newick format)
+# write.tree(phylo_tree_filtered, file = here("Data", "Fish", "Filtered_LTER_Taxonomic_Tree.tre"))
 
-# save the graphic
-svg(here("Figures", "Filtered_LTER_Taxonomic_Tree.svg"), width = 20, height = 40)
-plot.phylo(phylo_tree_filtered, cex = 0.75, show.node.label = TRUE, show.tip.label = TRUE)
-dev.off()
-
-# save the tree as a .tre file (Newick format)
-write.tree(phylo_tree_filtered, file = here("Data", "Fish", "Filtered_LTER_Taxonomic_Tree.tre"))
+gc()
 
 #### WHAT IF WE USE PHYLOGENETIC DATA INSTEAD OF TAXONOMIC DATA ####
 require(fishtree)
@@ -922,6 +997,11 @@ true_phylo_tree$tip.label = gsub("_", " ", true_phylo_tree$tip.label)
 # check the format just to be sure
 head(true_phylo_tree$tip.label, 5)
 
+# plot
+plot.phylo(true_phylo_tree)
+
+gc() 
+
 #### FINAL STEPS ####
 # we need to now go back to the MCR LTER survey data and keep only 
 # those species for which we have all the necessary data!
@@ -934,6 +1014,10 @@ species_to_keep = species_from_transects[species_from_transects %in% traits_all$
 # keep only species that are in true_phylo_tree
 species_to_keep = species_from_transects[species_from_transects %in% 
                                            true_phylo_tree$tip.label]
+
+# now go back and filter to make sure traits species = phylo species
+traits_filter = traits_all %>%
+  filter(Species %in% species_to_keep)
 
 # filter the PA and Abundance dataframes
 aggregate_data_PA_wide = aggregate_data_PA_wide %>%
@@ -962,7 +1046,7 @@ write.csv(aggregate_data_ABU_wide,
           here("HMSC", "Data", "Intermediate_Datasets",
                "Fish_Abundance_Dataset.csv"),
           row.names = FALSE)
-write.csv(traits_all,
+write.csv(traits_filter,
           here("HMSC", "Data", "Intermediate_Datasets",
                "Fish_Traits_Dataset.csv"),
           row.names = FALSE)
