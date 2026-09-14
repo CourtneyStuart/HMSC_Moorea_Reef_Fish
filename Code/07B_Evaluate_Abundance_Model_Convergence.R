@@ -43,11 +43,11 @@ list.files(model.directory)
 
 # read in the results file
 nChains = 4
-samples = 1000
-thin = 100
+samples = 4000
+thin = 50
 filename = file.path(model.directory, 
                      paste0("ABU_model_chains_", as.character(nChains),
-                            "_samples_",as.character(samples),
+                            "_total_samples_",as.character(samples),
                             "_thin_",as.character(thin),".rda"))
 load(filename)
 
@@ -285,7 +285,7 @@ ggplot(df_beta_sample,
 
 ggsave(plot = last_plot(),
        filename = here("Figures", "ABU_Model",
-                       "Beta_Trace_Random_Sample_4Chains_1000Samples_100Thin.jpg"),
+                       "Beta_Trace_Random_Sample_4Chains_4000Samples_50Thin.jpg"),
        width = 8, height = 10, units = "in", dpi = 300)
 
 # look at a few random species from the community as examples...
@@ -312,7 +312,7 @@ ggplot(df_beta_sp1,
 
 ggsave(plot = last_plot(),
        filename = here("Figures", "ABU_Model",
-                       "Beta_Trace_A_septemfasciatus_4Chains_1000Samples_100Thin.jpg"),
+                       "Beta_Trace_A_septemfasciatus_4Chains_4000Samples_50Thin.jpg"),
        width = 8, height = 10, units = "in", dpi = 300)
 
 # look at all parameters for Acanthurus.triostegus
@@ -337,7 +337,7 @@ ggplot(df_beta_sp2,
 
 ggsave(plot = last_plot(),
        filename = here("Figures", "ABU_Model",
-                       "Beta_Trace_A_triostegus_4Chains_1000Samples_100Thin.jpg"),
+                       "Beta_Trace_A_triostegus_4Chains_4000Samples_50Thin.jpg"),
        width = 8, height = 10, units = "in", dpi = 300)
 
 # look at all parameters for Scarus.altipinnis
@@ -362,7 +362,7 @@ ggplot(df_beta_sp3,
 
 ggsave(plot = last_plot(),
        filename = here("Figures", "ABU_Model",
-                       "Beta_Trace_S_altipinnis_4Chains_1000Samples_100Thin.jpg"),
+                       "Beta_Trace_S_altipinnis_4Chains_4000Samples_50Thin.jpg"),
        width = 8, height = 10, units = "in", dpi = 300)
 
 # trace plots for the beta parameters reveal poor chain mixing for some
@@ -377,11 +377,11 @@ ggsave(plot = last_plot(),
 
 # read in the results file
 nChains = 4
-samples = 1000
-thin = 100
+samples = 4000
+thin = 50
 filename = file.path(model.directory, 
                      paste0("ABU_conditional_model_chains_", as.character(nChains),
-                            "_samples_",as.character(samples),
+                            "_total_samples_",as.character(samples),
                             "_thin_",as.character(thin),".rda"))
 load(filename)
 
@@ -390,41 +390,18 @@ mpost = convertToCodaObject(ABU_conditional_model,
                             spNamesNumbers = c(T,F),
                             covNamesNumbers = c(T,F))
 
+##### BETA #####
 # compute the effective sample sizes for beta
 es.beta = effectiveSize(mpost$Beta)
 summary(es.beta) # look at the spread of effective sample sizes
 
 # which parameters had an effective sample size for beta < 100?
-low.es.beta = es.beta[es.beta < 100]
+low.es.beta = es.beta[es.beta <= 100]
 length(low.es.beta)
-
-# there are 553 species-covariate pairs with low ESS (<100) for beta. this is a 
-# concern because it points to potential convergence issues. examine this further
-# using PSRF values.
 
 # calculate the PSRF values for beta - ideally, we want all PSRF <= 1.1
 psrf.beta = gelman.diag(mpost$Beta, multivariate = FALSE)$psrf
 summary(psrf.beta) # look at the spread of values
-gc()
-
-# what about the omega parameters (residual co-occurrences)
-# to look at all omega PSRFs we would run the line below; however, we have many
-# species pairs (with 143 unique species) so this would take a lot of time and
-# computational effort!!!
-# psrf = gelman.diag(mpost$Omega[[1]], multivariate = FALSE)$psrf
-
-# instead, for omega, we will take a sub-sample of 5000 randomly selected species
-# pairs to avoid excessive computations.
-tmp = mpost$Omega[[1]]
-z = ncol(tmp[[1]])
-sel = sample(z, size = 5000)
-
-# here we take the subset of species pairs + loop over the 4 MCMC chains
-for(i in 1:length(tmp)){
-  tmp[[i]] = tmp[[i]][,sel]}
-
-psrf.omega = gelman.diag(tmp, multivariate = FALSE)$psrf
-summary(psrf.omega) # look at the spread of values
 
 # what percentage of the beta point estimates are <= 1.1?
 round((sum(psrf.beta[, "Point est."] <= 1.1) /
@@ -436,22 +413,59 @@ round((sum(psrf.beta[, "Upper C.I."] <= 1.1) /
          length(psrf.beta[, "Upper C.I."]) * 100),
       digits = 2)
 
-# what percentage of the omega point estimates are <= 1.1?
-round((sum(psrf.omega[, "Point est."] <= 1.1) /
-         length(psrf.omega[, "Point est."]) * 100),
-      digits = 2)
-
-# what percentage of the omega upper CI estimates are <= 1.1? (stricter assessment)
-round((sum(psrf.omega[, "Upper C.I."] <= 1.1) /
-         length(psrf.omega[, "Upper C.I."]) * 100),
-      digits = 2)
-
 # identify the beta parameters that did not converge
 unconverged_beta = as.data.frame(which(psrf.beta[, "Point est."] > 1.1))
 
-# identify the omega parameters that did not converge (of the 5000 sub-sampled)
-unconverged_omega = as.data.frame(which(psrf.omega[, "Point est."] > 1.1))
+##### OMEGA #####
+# to look at all omega PSRFs we run the line below
+# WARNING, we have many species pairs (with 143 unique species) so this takes
+# a lot of time and computational effort!!!
+psrf.omega = gelman.diag(mpost$Omega[[1]], multivariate = FALSE)$psrf
 
+# # instead, for omega, we can take a sub-sample of 5000 randomly selected species
+# # pairs to avoid excessive computations.
+# tmp = mpost$Omega[[1]]
+# z = ncol(tmp[[1]])
+# sel = sample(z, size = 5000)
+# 
+# # here we take the subset of species pairs + loop over the 4 MCMC chains
+# for(i in 1:length(tmp)){
+#   tmp[[i]] = tmp[[i]][,sel]}
+# 
+# psrf.omega = gelman.diag(tmp, multivariate = FALSE)$psrf
+# summary(psrf.omega) # look at the spread of values
+
+# keep only the upper triangle of the 149 x 149 omega matrix, excluding the
+# diagonal, so that each unique species pair is counted only once
+keep = upper.tri(matrix(FALSE, 149, 149), diag = FALSE)
+
+# select the corresponding PSRF rows
+psrf.omega.unique = psrf.omega[as.vector(keep), , drop = FALSE]
+summary(psrf.omega.unique) # look at the spread of values
+
+# check number of unique species pairs
+nrow(psrf.omega.unique) # this should be 11026
+
+# identify omega estimates that potentially did not converge
+# (unique species pairs with point estimate PSRF > 1.1)
+unconverged_omega = as.data.frame(
+  which(psrf.omega.unique[, "Point est."] > 1.1))
+
+# check number of omega estimates that potentially did not converge
+nrow(unconverged_omega)
+
+# what percentage of the omega point estimates are <= 1.1?
+round((sum(psrf.omega.unique[, "Point est."] <= 1.1) /
+         length(psrf.omega.unique[, "Point est."]) * 100),
+      digits = 2)
+
+# what percentage of the omega upper CI estimates are <= 1.1?
+# (stricter assessment)
+round((sum(psrf.omega.unique[, "Upper C.I."] <= 1.1) /
+         length(psrf.omega.unique[, "Upper C.I."]) * 100),
+      digits = 2)
+
+##### GAMMA #####
 # what about the gamma parameters (trait influences on species-environment relationships)?
 if("Gamma" %in% names(mpost)) {
   gamma_params = mpost$Gamma
@@ -463,6 +477,10 @@ if("Gamma" %in% names(mpost)) {
 # look at the spread of ESS for the gamma parameters
 es.gamma = effectiveSize(gamma_params)
 print(summary(es.gamma))
+
+# which parameters had an effective sample size for gamma < 100?
+low.es.gamma = es.gamma[es.gamma <= 100]
+length(low.es.gamma)
 
 # calculate the PSRFs for gamma
 gamma_params = mpost$Gamma
@@ -618,7 +636,7 @@ ggplot(df_beta_sample,
 
 ggsave(plot = last_plot(),
        filename = here("Figures", "ABU_Conditional_Model",
-                       "Beta_Trace_Random_Sample_4Chains_1000Samples_100Thin.jpg"),
+                       "Beta_Trace_Random_Sample_4Chains_4000Samples_50Thin.jpg"),
        width = 8, height = 10, units = "in", dpi = 300)
 
 # look at a few random species from the community as examples...
@@ -645,7 +663,7 @@ ggplot(df_beta_sp1,
 
 ggsave(plot = last_plot(),
        filename = here("Figures", "ABU_Conditional_Model",
-                       "Beta_Trace_A_septemfasciatus_4Chains_1000Samples_100Thin.jpg"),
+                       "Beta_Trace_A_septemfasciatus_4Chains_4000Samples_50Thin.jpg"),
        width = 8, height = 10, units = "in", dpi = 300)
 
 # look at all parameters for Acanthurus.triostegus
@@ -670,7 +688,7 @@ ggplot(df_beta_sp2,
 
 ggsave(plot = last_plot(),
        filename = here("Figures", "ABU_Conditional_Model",
-                       "Beta_Trace_A_triostegus_4Chains_1000Samples_100Thin.jpg"),
+                       "Beta_Trace_A_triostegus_4Chains_4000Samples_50Thin.jpg"),
        width = 8, height = 10, units = "in", dpi = 300)
 
 # look at all parameters for Scarus.altipinnis
@@ -695,7 +713,7 @@ ggplot(df_beta_sp3,
 
 ggsave(plot = last_plot(),
        filename = here("Figures", "ABU_Conditional_Model",
-                       "Beta_Trace_S_altipinnis_4Chains_1000Samples_100Thin.jpg"),
+                       "Beta_Trace_S_altipinnis_4Chains_4000Samples_50Thin.jpg"),
        width = 8, height = 10, units = "in", dpi = 300)
 
 # trace plots for the beta parameters reveal poor chain mixing for some
