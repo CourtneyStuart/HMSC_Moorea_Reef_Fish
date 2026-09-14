@@ -40,11 +40,11 @@ list.files(model.directory)
 
 # read in the results file
 nChains = 4
-samples = 2000
-thin = 100
+samples = 4000
+thin = 50
 filename = file.path(model.directory, 
                      paste0("PA_model_chains_", as.character(nChains),
-                            "_samples_",as.character(samples),
+                            "_total_samples_",as.character(samples),
                             "_thin_",as.character(thin),".rda"))
 load(filename)
 
@@ -65,7 +65,7 @@ round((mean(MF_fit$AUC)), digits = 2) # mean AUC across species
 round((summary(MF_fit$AUC)), digits = 2) # distribution of AUC values
 
 # create simple histogram plots of Tjur R2 and AUC
-jpeg(filename = here("Figures", "PA_Model", "AUC_and_TjurR2_Explanatory_Power.jpg"),
+jpeg(filename = here("Figures", "PA_model", "AUC_and_TjurR2_Explanatory_Power.jpg"),
      width = 16,
      height = 8,
      units = "in",
@@ -107,7 +107,7 @@ auc_fit = data.frame(
 # # round((summary(MF_in_sample$AUC)), digits = 2) # distribution of AUC values
 # 
 # # create simple histogram plots of AUC and Tjur R2
-# jpeg(filename = here("Figures", "PA_Model", "AUC_and_TjurR2_In_Sample_Predictive.jpg"),
+# jpeg(filename = here("Figures", "PA_model", "AUC_and_TjurR2_In_Sample_Predictive.jpg"),
 #      width = 16,
 #      height = 8,
 #      units = "in",
@@ -153,7 +153,7 @@ round((mean(MF_out_sample$AUC)), digits = 2) # mean AUC across species
 round((summary(MF_out_sample$AUC)), digits = 2) # distribution of AUC values
 
 # create simple histogram plots of AUC and Tjur R2
-jpeg(filename = here("Figures", "PA_Model", "AUC_and_TjurR2_Out_Sample_Predictive.jpg"),
+jpeg(filename = here("Figures", "PA_model", "AUC_and_TjurR2_Out_Sample_Predictive.jpg"),
      width = 16,
      height = 8,
      units = "in",
@@ -177,7 +177,7 @@ auc_predictive = data.frame(
 
 #### MULTI-PANEL PERFORMANCE PLOT ####
 # four panel plot to show both explanatory and in-sample poserior predictive performance
-jpeg(filename = here("Figures", "PA_Model", "AUC_and_TjurR2_Explanatory_and_Predictive.jpg"),
+jpeg(filename = here("Figures", "PA_model", "AUC_and_TjurR2_Explanatory_and_Predictive.jpg"),
      width = 8,
      height = 8,
      units = "in",
