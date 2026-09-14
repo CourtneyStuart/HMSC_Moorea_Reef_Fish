@@ -26,7 +26,7 @@ options(terra.progress = 1) # progress info for processing large rasters
 
 #### DIRECTORIES ####
 # working directory and relative folder path for here()
-#setwd("E:/Data/StuartC_DPhil_Ch3/")
+setwd("E:/Data/StuartC_DPhil_Ch3/")
 #set_here("E:/Data/StuartC_DPhil_Ch3/") # set first-time only
 here::i_am(".here")
 here::here() # verify
@@ -199,7 +199,7 @@ data_ABU = data_ABU %>%
 
 #### CREATING REQUIRED HMSC INPUTS ####
 ##### Y species data #####
-species_cols = 17:158 # species column numbers from data_PA
+species_cols = 17:165 # species column numbers from data_PA
 
 # presence-absence matrix
 Y_PA = as.matrix(data_PA[, species_cols])
@@ -208,30 +208,15 @@ Y_PA = as.matrix(data_PA[, species_cols])
 Y_ABU = as.matrix(data_ABU[, species_cols])
 
 # dimension check
-dim(Y_PA) 
+dim(Y_PA)
 dim(Y_ABU)
 
-##### X spatial-environmental data #####
-X = model.matrix(~ Habitat + COTS + Max_DHW + Cyclone + 
-                   Land_Dist + Depth_Mean_100m + Depth_Mean_500m +
-                   Curvature_Mean_100m + Curvature_Mean_500m +
-                   Coral_Mean_Cover + Macroalgae_Mean_Cover + CTB_Mean_Cover,
-                 data = data_PA)
-
-# scale numeric and integer predictors (NOT factors)
-continuous_vars = c("COTS", "Max_DHW", "Land_Dist", 
-                    "Depth_Mean_100m", "Depth_Mean_500m",
-                    "Curvature_Mean_100m", "Curvature_Mean_500m",
-                    "Coral_Mean_Cover", "Macroalgae_Mean_Cover", "CTB_Mean_Cover")  
-X_scaled = X
-X_scaled[, continuous_vars] = scale(X[, continuous_vars])
-
-##### Study design #####
+##### study design #####
 study_design = data.frame(
   site = factor(data_PA$Site),
   year = factor(data_PA$Year))
 
-##### Spatial coordinates for sites #####
+##### spatial coordinates for sites #####
 # get unique coordinates for each site
 unique_sites = data_PA %>%
   group_by(Site) %>%
@@ -241,129 +226,126 @@ unique_sites = data_PA %>%
 xy_sites = as.matrix(unique_sites[, c("Long_UTM6S", "Lat_UTM6S")])
 rownames(xy_sites) = unique_sites$Site
 
-##### Random levels #####
+##### random levels #####
 # site random effect with spatial structure
 rL.site = HmscRandomLevel(sData = xy_sites)
 
-# Year random effect  
+# year random effect
 rL.year = HmscRandomLevel(units = study_design$year)
 
-##### CHECKS #####
+##### checks #####
 # check alignment
-nrow(Y_PA) == nrow(X_scaled)  # should be TRUE
-nrow(Y_PA) == nrow(study_design)  # should be TRUE
-nrow(Y_ABU) == nrow(X_scaled)  # should be TRUE
-nrow(Y_ABU) == nrow(study_design)  # should be TRUE
+nrow(Y_PA) == nrow(data_PA)
+nrow(Y_PA) == nrow(study_design)
+nrow(Y_ABU) == nrow(data_ABU)
+nrow(Y_ABU) == nrow(study_design)
 
 # check for NAs
-sum(is.na(Y_PA))  # preferably no NAs
-sum(is.na(Y_ABU))  # preferably no NAs
-sum(is.na(X_scaled))  # should be 0 (no NAs in predictors!)
-sum(is.na(study_design))  # should be 0 (no NAs in study design!)
+sum(is.na(Y_PA))
+sum(is.na(Y_ABU))
+sum(is.na(data_PA))
+sum(is.na(data_ABU))
+sum(is.na(study_design))
 
 # check spatial data
-nrow(xy_sites)  # should be 6
-rownames(xy_sites)  # should match site names
+nrow(xy_sites)
+rownames(xy_sites)
 
 # check species names match between Y and trait data
-colnames(Y_PA) == colnames(Y_ABU) # should be the same (all TRUE)
-species_Y = colnames(Y_PA) # should be the same (all TRUE)
+colnames(Y_PA) == colnames(Y_ABU)
+
+species_Y = colnames(Y_PA)
 species_trait = traits$Species
 
 # check for matches
-length(species_Y)  # there should be 143 species
-length(species_trait)  # how many species have trait data?
+length(species_Y)
+length(species_trait)
 
-# species that match across the trait and response data
 matching_species = dplyr::intersect(species_Y, species_trait)
 length(matching_species)
 
-# HMSC requires:
+##### trait data #####
+
+# Hmsc requires:
 # trait data as a dataframe
 # rownames must exactly match column names in Y
 # only include species that are in Y
 
-# to be sure, filter trait data to only species in Y
 trait_hmsc = traits[traits$Species %in% species_Y, ]
 
 # set species names as rownames
 rownames(trait_hmsc) = trait_hmsc$Species
 
-# remove the Species column (now it's in rownames)
+# remove Species column
 trait_hmsc$Species = NULL
 
 # reorder to match Y column order
 trait_hmsc = trait_hmsc[colnames(Y_PA), ]
 
+# make sure categorical traits are factors
+categorical_traits = c("Body_Shape", "Column_Position", "Schooling",
+                       "Shoaling", "Solitary", "Reproductive_Mode",
+                       "Spawn_Agg")
+
+trait_hmsc[, categorical_traits] =
+  lapply(trait_hmsc[, categorical_traits], factor)
+
+# remove the column position trait (all species are reef-associated)
+trait_hmsc = trait_hmsc %>%
+  select(-Column_Position)
+
 # check alignment
-all(rownames(trait_hmsc) == colnames(Y_PA))  # must be TRUE!
-all(rownames(trait_hmsc) == colnames(Y_ABU))  # must be TRUE!
+all(rownames(trait_hmsc) == colnames(Y_PA))
+all(rownames(trait_hmsc) == colnames(Y_ABU))
 
 # check trait data
 head(trait_hmsc)
 str(trait_hmsc)
 
-# scale continuous traits
-continuous_traits = c("Trophic_Level", "Max_TL_cm")
-trait_hmsc[, continuous_traits] = scale(trait_hmsc[, continuous_traits])
-
-# make sure categorical traits are factors
-categorical_traits = c("Body_Shape", "Column_Position", "Schooling",
-                       "Shoaling", "Solitary", "Reproductive_Mode",
-                       "Spawn_Agg")
-trait_hmsc[, categorical_traits] = lapply(trait_hmsc[, categorical_traits], factor)
-
-# whoops, all species in our data are reef-associated!
-levels(trait_hmsc$Column_Position)
-
-# so remove the Column_Position trait!
-trait_hmsc = trait_hmsc %>%
-  select(-Column_Position)
-
-# define the models just to ensure that we've formatted the data properly -
-# we will not run any MCMC sampling yet!!!! if everything is formatted properly,
+# define the models just to ensure that we've formatted the data properly - 
+# we will not run any MCMC sampling yet!!!! if everything is formatted properly, 
 # these should run with no errors!!!!
 
 # define the presence-absence model
-PA_model = Hmsc(Y = Y_PA,
-          XData = as.data.frame(X_scaled),
-          # specify which predictors to use
-          XFormula = ~ HabitatForereef + HabitatFringing + COTS +
-            Max_DHW + Cyclone1 + Cyclone2 + Cyclone3 + Land_Dist + 
-            Depth_Mean_100m + Depth_Mean_500m +
-            Curvature_Mean_100m + Curvature_Mean_500m +
-            Coral_Mean_Cover + Macroalgae_Mean_Cover + CTB_Mean_Cover,
-          TrData = trait_hmsc,  # add trait data
-          # specify which traits to use
-          TrFormula = ~ Body_Shape + Max_TL_cm + Trophic_Level +
-            Reproductive_Mode + Spawn_Agg, 
-          phyloTree = tree, # add taxonomic tree
-          studyDesign = study_design, # add study design
-          ranLevels = list(site = rL.site, 
-                           year = rL.year),
-          distr = "probit")
+PA_model = Hmsc(
+  Y = Y_PA,
+  XData = data_PA,
+  XFormula = ~ Habitat + COTS + Max_DHW + Cyclone +
+    Land_Dist + Depth_Mean_100m + Depth_Mean_500m +
+    Curvature_Mean_100m + Curvature_Mean_500m +
+    Coral_Mean_Cover + Macroalgae_Mean_Cover + CTB_Mean_Cover,
+  TrData = trait_hmsc,
+  TrFormula = ~ Body_Shape + Max_TL_cm + Trophic_Level +
+    Reproductive_Mode + Spawn_Agg,
+  phyloTree = tree,
+  studyDesign = study_design,
+  ranLevels = list(site = rL.site,
+                   year = rL.year),
+  distr = "probit",
+  XScale = TRUE,
+  TrScale = TRUE)
 
 # define the abundance model
-ABU_model = Hmsc(Y = Y_ABU,
-                 XData = as.data.frame(X_scaled),
-                 # specify which predictors to use
-                 XFormula = ~ HabitatForereef + HabitatFringing + COTS +
-                   Max_DHW + Cyclone1 + Cyclone2 + Cyclone3 + Land_Dist + 
-                   Depth_Mean_100m + Depth_Mean_500m +
-                   Curvature_Mean_100m + Curvature_Mean_500m +
-                   Coral_Mean_Cover + Macroalgae_Mean_Cover + CTB_Mean_Cover,
-                 TrData = trait_hmsc,  # add trait data
-                 # specify which traits to use
-                 TrFormula = ~ Body_Shape + Max_TL_cm + Trophic_Level +
-                   Reproductive_Mode + Spawn_Agg, 
-                 phyloTree = tree, # add taxonomic tree
-                 studyDesign = study_design, # add study design
-                 ranLevels = list(site = rL.site, 
-                                  year = rL.year),
-                distr = "lognormal poisson")
+ABU_model = Hmsc(
+  Y = Y_ABU,
+  XData = data_ABU,
+  XFormula = ~ Habitat + COTS + Max_DHW + Cyclone +
+    Land_Dist + Depth_Mean_100m + Depth_Mean_500m +
+    Curvature_Mean_100m + Curvature_Mean_500m +
+    Coral_Mean_Cover + Macroalgae_Mean_Cover + CTB_Mean_Cover,
+  TrData = trait_hmsc,
+  TrFormula = ~ Body_Shape + Max_TL_cm + Trophic_Level +
+    Reproductive_Mode + Spawn_Agg,
+  phyloTree = tree,
+  studyDesign = study_design,
+  ranLevels = list(site = rL.site,
+                   year = rL.year),
+  distr = "lognormal poisson",
+  XScale = TRUE,
+  TrScale = TRUE)
 
 # save the files ready for Hmsc MCMC sampling
-save(Y_PA, Y_ABU, X_scaled, trait_hmsc, tree, 
+save(Y_PA, Y_ABU, data_PA, data_ABU, trait_hmsc, tree, 
      study_design, rL.site, rL.year, xy_sites,
      file = here("HMSC", "Data", "Hmsc_Data_Ready.RData"))
 
@@ -375,8 +357,13 @@ write.csv(Y_ABU,
           here("HMSC", "Data", "Y_Abundance.csv"),
           row.names = FALSE)
 
-write.csv(X_scaled,
-          here("HMSC", "Data", "X_Scaled.csv"),
+write.csv(data_PA %>%
+            select(Habitat, COTS, Max_DHW, Cyclone,
+                   Land_Dist, Depth_Mean_100m, Depth_Mean_500m,
+                   Curvature_Mean_100m, Curvature_Mean_500m,
+                   Coral_Mean_Cover, Macroalgae_Mean_Cover,
+                   CTB_Mean_Cover),
+          here("HMSC", "Data", "X_Environmental.csv"),
           row.names = FALSE)
 
 write.csv(study_design,
