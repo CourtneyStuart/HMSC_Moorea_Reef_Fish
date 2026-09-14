@@ -1,0 +1,2 @@
+Data/Abundance_Model_Outputs/*.rda filter=lfs diff=lfs merge=lfs -text
+Data/Occurrence_Model_Outputs/*.rda filter=lfs diff=lfs merge=lfs -text
