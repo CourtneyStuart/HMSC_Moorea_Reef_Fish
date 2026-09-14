@@ -40,11 +40,11 @@ list.files(model.directory)
 
 # read in the results file
 nChains = 4
-samples = 1000
-thin = 100
+samples = 4000
+thin = 50
 filename = file.path(model.directory, 
                      paste0("PA_model_chains_", as.character(nChains),
-                            "_samples_",as.character(samples),
+                            "_total_samples_",as.character(samples),
                             "_thin_",as.character(thin),".rda"))
 load(filename)
 
@@ -77,256 +77,736 @@ make_unique_abbrev = function(names) {
 abbrv_species = make_unique_abbrev(PA_model$spNames)
 full_species = PA_model$spNames
 
-#### SPECIES NICHES ####
-# I want to use abbreviated species names for plotting, set these as these column names 
+#### SPECIES NICHES (BETA) ####
+# I want to use abbreviated species names for plotting, set these as the column names
 colnames(PA_model$Y) = abbrv_species
 PA_model$spNames = abbrv_species
 
-# construct a beta plot showing the estimates of species' niche parameters
+# get the posterior estimates of beta parameters
 postBeta = getPostEstimate(PA_model, parName = "Beta")
 
-# create the plot
-jpeg(filename = here("Figures", "PA_Model", "Beta_Plot.jpg"), 
-     width = 10, 
-     height = 12, 
-     units = "in", 
-     res = 450)
+# exclude species for which >=25% of beta parameters (4 or more of 16) showed 
+# unsatisfactory convergence
+excluded_species = c(
+  "C. flavissima",
+  "N. armatus",
+  "Z. scopas")
 
-par(mar = c(9, 11, 0, 0), 
-    mgp = c(0, 0, 0), 
-    oma = c(0, 0, 0, 0),
-    omi = c(0, 0, 0, 0),
-    xpd = NA)
-
-plotBeta(PA_model, 
-         post = postBeta, 
-         plotTree = FALSE, 
-         spNamesNumbers = c(TRUE, FALSE),
-         covNamesNumbers = c(TRUE, FALSE), 
-         colors = colorRampPalette(c("darkred","white","darkblue")),
-         mar = c(9, 11, 0, 0),
-         mgp = c(0, 2, 0),
-         supportLevel = 0.95)
-
-dev.off()
-
-# the intercept here refers to the reference level - HabitatBackreef in a non-cyclone
-# year (0).
-
-# the full beta plot may be hard to read because of the large number of species (n = 143)!
-# instead, split the species in half and make two beta plots.
-
-# use numeric indices instead of species names to define groups
-group1 = rev(1:72)
-group2 = rev(73:142)
-
-# create and save the first beta plot
-jpeg(filename = here("Figures", "PA_Model", "Beta_Plot_1.jpg"), 
-     width = 6, 
-     height = 12, 
-     units = "in", 
-     res = 600)
-
-par(mar = c(10, 6.75, 0, 0), 
-    mgp = c(0, 0, 0), 
-    oma = c(0, 0, 0, 0),
-    omi = c(0, 0, 0, 0),
-    xpd = NA)
-
-plotBeta(PA_model,
-         post = postBeta, 
-         param = "Support", 
-         plotTree = FALSE, 
-         SpeciesOrder = "Vector",
-         SpVector = group1,  # numeric indices, not names
-         spNamesNumbers = c(TRUE, FALSE),
-         covNamesNumbers = c(TRUE, FALSE), 
-         colors = colorRampPalette(c("darkred","white","darkblue")),
-         mar = c(10, 6.75, 0, 0),
-         mgp = c(0, 2, 0),
-         supportLevel = 0.95)
-
-dev.off()
-
-# and now do the same for the second beta plot
-jpeg(filename = here("Figures", "PA_Model", "Beta_Plot_2.jpg"), 
-     width = 6, 
-     height = 12, 
-     units = "in", 
-     res = 600)
-
-par(mar = c(10, 6.75, 0, 0), 
-    mgp = c(0, 0, 0), 
-    oma = c(0, 0, 0, 0),
-    omi = c(0, 0, 0, 0),
-    xpd = NA)
-
-plotBeta(PA_model, 
-         post = postBeta, 
-         param = "Support",
-         plotTree = FALSE, 
-         SpeciesOrder = "Vector",
-         SpVector = group2,
-         spNamesNumbers = c(TRUE, FALSE),
-         covNamesNumbers = c(TRUE, FALSE), 
-         colors = colorRampPalette(c("darkred","white","darkblue")),
-         mar = c(10, 6.75, 0, 0),
-         mgp = c(0, 2, 0),
-         supportLevel = 0.95)
-
-dev.off()
-
-# closer look
+# prepare beta plot data
 thresh = 0.95
 
-# tidy the matrices (postBeta: rows = variables, cols = species)
+# tidy posterior mean estimates
 rownames(postBeta$mean) = PA_model$covNames
+
 beta_df = as.data.frame(as.table(postBeta$mean))
 names(beta_df) = c("Variable", "Species", "Mean")
+
+# add posterior support for positive and negative effects
 beta_df$Support_Pos = as.vector(postBeta$support)
 beta_df$Support_Neg = as.vector(postBeta$supportNeg)
 
-# classify by 95% posterior sign
+# classify beta parameters according to 95% posterior support
 beta_df = beta_df %>%
-  mutate(Sign95 = case_when(
-    Support_Pos >= thresh ~ "Positive",
-    Support_Neg >= thresh ~ "Negative",
-    TRUE                 ~ "No_Effect"))
+  mutate(
+    Sign95 = case_when(
+      Species %in% excluded_species ~ "Poor convergence",
+      Support_Pos >= thresh ~ "Positive",
+      Support_Neg >= thresh ~ "Negative",
+      TRUE ~ "No effect"))
 
-# we don't want to plot beta parameters for the species-variable combinations with 
-# ESS < 100, so identify and remove these
-es.beta = effectiveSize(mpost$Beta)
-low.es.beta = es.beta[es.beta < 100]
-print(low.es.beta)
+# order species in the same way as the original full plot
+species_order = rev(colnames(PA_model$Y))
 
-bad_pairs = do.call(rbind, lapply(names(low.es.beta), function(x) {
-  s = sub("^B\\[", "", x)
-  s = sub("\\]$", "", s)
-  parts = strsplit(s, ",\\s*")[[1]]
-  data.frame(
-    Variable = parts[1],
-    Species  = parts[2],
-    stringsAsFactors = FALSE)}))
+##### FULL BETA PLOT #####
+beta_plot_df = beta_df %>%
+  mutate(
+    Species = factor(Species, levels = species_order),
+    Variable = factor(Variable, levels = PA_model$covNames))
 
-bad_pairs = bad_pairs %>%
-  mutate(Species = sub("^(.)([^.]*)\\.([^.]*)$", "\\1. \\3", Species))
+# create full beta heatmap
+p_beta_full = ggplot(
+  beta_plot_df,
+  aes(x = Variable, y = Species, fill = Sign95)) +
+  geom_tile(
+    colour = "grey80",
+    linewidth = 0.3) +
+  scale_fill_manual(
+    name = NULL,
+    values = c(
+      "Negative" = "darkred",
+      "No effect" = "white",
+      "Positive" = "darkblue",
+      "Poor convergence" = "grey40"),
+    breaks = c(
+      "Negative",
+      "No effect",
+      "Positive",
+      "Poor convergence"),
+    labels = c(
+      "Negative",
+      "No effect",
+      "Positive",
+      "Poor \u03b2 convergence \u2013 not interpreted"),
+    drop = FALSE) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  labs(
+    x = NULL,
+    y = NULL) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5,
+      colour = "black"),
+    axis.text.y = element_text(
+      face = "italic",
+      colour = "black"),
+    legend.position = "top")
 
-# remove these species-environment pairs
+# save full beta plot
+jpeg(
+  filename = here("Figures", "PA_Model", "Beta_Plot.jpg"),
+  width = 10,
+  height = 12,
+  units = "in",
+  res = 600,
+  quality = 100)
+
+print(p_beta_full)
+
+dev.off()
+
+tiff(
+  filename = here("Figures", "PA_Model", "Beta_Plot.tiff"),
+  width = 10,
+  height = 12,
+  units = "in",
+  res = 600,
+  compression = "lzw")
+
+print(p_beta_full)
+
+dev.off()
+
+# use numeric indices to define species groups
+group1 = rev(1:74)
+group2 = rev(75:149)
+
+# convert numeric indices to species names
+species_group1 = colnames(PA_model$Y)[group1]
+species_group2 = colnames(PA_model$Y)[group2]
+
+##### BETA PLOT 1 #####
+beta_plot_1_df = beta_df %>%
+  filter(Species %in% species_group1) %>%
+  mutate(
+    Species = factor(
+      Species,
+      levels = species_group1),
+    Variable = factor(
+      Variable,
+      levels = PA_model$covNames))
+
+p_beta_1 = ggplot(
+  beta_plot_1_df,
+  aes(x = Variable, y = Species, fill = Sign95)) +
+  geom_tile(
+    colour = "grey80",
+    linewidth = 0.3) +
+  scale_fill_manual(
+    name = NULL,
+    values = c(
+      "Negative" = "darkred",
+      "No effect" = "white",
+      "Positive" = "darkblue",
+      "Poor convergence" = "grey40"),
+    breaks = c(
+      "Negative",
+      "No effect",
+      "Positive",
+      "Poor convergence"),
+    labels = c(
+      "Negative",
+      "No effect",
+      "Positive",
+      "Poor \u03b2 convergence \u2013 not interpreted"),
+    drop = FALSE) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  labs(
+    x = NULL,
+    y = NULL) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5,
+      colour = "black"),
+    axis.text.y = element_text(
+      face = "italic",
+      colour = "black"),
+    legend.position = "top")
+
+jpeg(
+  filename = here("Figures", "PA_Model", "Beta_Plot_1.jpg"),
+  width = 6,
+  height = 12,
+  units = "in",
+  res = 600,
+  quality = 100)
+
+print(p_beta_1)
+
+dev.off()
+
+##### BETA PLOT 2 #####
+beta_plot_2_df = beta_df %>%
+  filter(Species %in% species_group2) %>%
+  mutate(
+    Species = factor(
+      Species,
+      levels = species_group2),
+    Variable = factor(
+      Variable,
+      levels = PA_model$covNames))
+
+p_beta_2 = ggplot(
+  beta_plot_2_df,
+  aes(x = Variable, y = Species, fill = Sign95)) +
+  geom_tile(
+    colour = "grey80",
+    linewidth = 0.3) +
+  scale_fill_manual(
+    name = NULL,
+    values = c(
+      "Negative" = "darkred",
+      "No effect" = "white",
+      "Positive" = "darkblue",
+      "Poor convergence" = "grey40"),
+    breaks = c(
+      "Negative",
+      "No effect",
+      "Positive",
+      "Poor convergence"),
+    labels = c(
+      "Negative",
+      "No effect",
+      "Positive",
+      "Poor \u03b2 convergence \u2013 not interpreted"),
+    drop = FALSE) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  labs(
+    x = NULL,
+    y = NULL ) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5,
+      colour = "black"),
+    axis.text.y = element_text(
+      face = "italic",
+      colour = "black"),
+    legend.position = "top")
+
+jpeg(
+  filename = here("Figures", "PA_Model", "Beta_Plot_2.jpg"),
+  width = 6,
+  height = 12,
+  units = "in",
+  res = 600,
+  quality = 100)
+
+print(p_beta_2)
+
+dev.off()
+
+# exclude species with poor beta convergence from all inferential summaries
 beta_df_filt = beta_df %>%
-  anti_join(bad_pairs, by = c("Variable", "Species"))
+  filter(!Species %in% excluded_species)
 
 # counts per predictor
-counts = beta_df_filt %>% group_by(Variable) %>%
-  summarise(N_Positive = sum(Sign95 == "Positive"),
-            N_Negative = sum(Sign95 == "Negative"),
-            N_No_Effect = sum(Sign95 == "No_Effect")) %>%
-  mutate(label = paste0("+:", N_Positive, " / -:", N_Negative, " / 0:", N_No_Effect))
+counts = beta_df_filt %>%
+  group_by(Variable) %>%
+  summarise(
+    N_Positive = sum(Sign95 == "Positive"),
+    N_Negative = sum(Sign95 == "Negative"),
+    N_No_Effect = sum(Sign95 == "No effect"),
+    N_Total = n(),
+    .groups = "drop") %>%
+  mutate(
+    Pct_Positive = round(100 * N_Positive / N_Total, 2),
+    Pct_Negative = round(100 * N_Negative / N_Total, 2),
+    Pct_No_Effect = round(100 * N_No_Effect / N_Total, 2)) %>%
+  mutate(
+    label = paste0(
+      "+:", N_Positive,
+      " / -:", N_Negative,
+      " / 0:", N_No_Effect))
 
 print(counts)
 
-# quick faceted plot (means only; color by sign)
-ann = beta_df %>% 
-  group_by(Variable) %>% 
-  summarise(ypos = max(Mean, na.rm = TRUE) * 1.05) %>% 
-  left_join(counts, by = "Variable")
+# determine annotation positions using only interpretable species
+ann = beta_df_filt %>%
+  group_by(Variable) %>%
+  summarise(
+    ypos = max(Mean, na.rm = TRUE) * 1.05,
+    .groups = "drop") %>%
+  left_join(
+    counts,
+    by = "Variable")
 
-ggplot(beta_df, 
-       aes(x = Species, y = Mean, colour = Sign95)) +
+ggplot(
+  beta_df_filt,
+  aes(x = Species,
+      y = Mean,
+      colour = Sign95)) +
   geom_point(size = 1) +
-  facet_wrap(~Variable, scales = "free_y", ncol = 4) +
+  facet_wrap(
+    ~Variable,
+    scales = "free_y",
+    ncol = 4) +
   coord_flip() +
   theme_minimal() +
-  geom_text(data = ann, 
-            aes(x = Inf,
-                y = ypos, 
-                label = label), 
-            inherit.aes = FALSE, hjust = 1.05, size = 3)
+  geom_text(
+    data = ann,
+    aes(
+      x = Inf,
+      y = ypos,
+      label = label),
+    inherit.aes = FALSE,
+    hjust = 1.05,
+    size = 3)
 
-# one figure per variable:
-# now, for each variable, plot the posterior mean beta for each species. shade the dots
-# based on whether the coefficient is negative, positive, or negligible at the 95% support
-# level. because there are so many species, also add a tally in the legend at the bottom.
-# save a separate jpeg file for each variable. 
-vars = setdiff(PA_model$covNames, "(Intercept)")
-out_dir = here("Figures", "PA_Model")
-dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+#### SPECIES NICHES (BETA) - PHYLOGENETIC ORDERING ####
+# extract the phylogenetic tree directly from the Hmsc model
+phylo_tree = PA_model$phyloTree
 
-for (v in vars) {
-  
-  d = filter(beta_df_filt, Variable == v)
-  
-  # counts for legend labels
-  n_pos = sum(d$Sign95 == "Positive")
-  n_neg = sum(d$Sign95 == "Negative")
-  n_none = sum(d$Sign95 == "No_Effect")
-  
-  legend_labels = c(
-    Positive  = paste0("Positive (n = ", n_pos, ")"),
-    Negative  = paste0("Negative (n = ", n_neg, ")"),
-    No_Effect = paste0("None (n = ", n_none, ")"))
-  
-  p = ggplot(d, aes(Species, Mean, colour = Sign95)) +
-    geom_point(size = 1.5) +
-    geom_hline(yintercept = 0, linetype = "dashed", colour = "black") +
-    coord_flip() +
-    theme_bw() +
-    theme(
-      panel.grid.major = element_blank(),
-      panel.grid.minor = element_blank(),
-      axis.text.y = element_text(size = 6, face = "italic"),
-      plot.title = element_text(hjust = 0.4),
-      legend.position = "bottom",
-      legend.direction = "horizontal",
-      legend.box.margin = margin(t = -7.5),
-      legend.title = element_text(size = 10),
-      legend.text = element_text(size = 10),
-      plot.margin = margin(t = 8, r = 8, b = 8, l = 10)) +
-    scale_colour_manual(
-      name   = "Effect (95% posterior support)",
-      values = c(
-        Positive  = bay[1],
-        Negative  = bay[8],
-        No_Effect = bay[5]),
-      labels = legend_labels,
-      guide  = guide_legend(nrow = 1)) +
-    labs(title = v, x = NULL, y = "Posterior mean (Beta)")
+# create a copy of the tree for plotting
+phylo_tree_plot = phylo_tree
 
-  ggsave(
-    filename = file.path(out_dir, paste0(v, ".jpeg")),
-    plot = p,
-    device = "jpeg",
-    width = 8, height = 10, units = "in",
-    dpi = 450,
-    limitsize = FALSE)
+# create abbreviated species labels for plotting
+phylo_tree_plot$tip.label = sapply(
+  strsplit(phylo_tree$tip.label, "\\."),
+  function(x) paste0(
+    substr(x[1], 1, 1),
+    ". ",
+    paste(x[-1], collapse = " ")))
+
+# extract the phylogenetic tip order from the original species names
+phylo_order = match(
+  phylo_tree_plot$tip.label,
+  colnames(PA_model$Y))
+
+# check that all species are present in PA_model$Y
+if (any(is.na(phylo_order))) {
+  stop("some species in the phylogenetic tree are missing from PA_model$Y.")
 }
 
-#### TRAIT SIGNALS ####
-# examine if the species niches are linked to their traits with a gamma plot
+# reorder the species names according to phylogenetic tip order
+species_order_phylo = colnames(PA_model$Y)[phylo_order]
+
+# convert to abbreviated species names
+species_order_phylo_abbrv = abbrv_species[
+  match(
+    species_order_phylo,
+    colnames(PA_model$Y))]
+
+# reverse the order so the first species appears at the top of the plot
+species_order_phylo_abbrv = rev(
+  species_order_phylo_abbrv)
+
+##### split phylogenetic order into two groups #####
+# first 74 species in the phylogenetic order
+species_group1 = species_order_phylo_abbrv[1:74]
+
+# remaining 75 species in the phylogenetic order
+species_group2 = species_order_phylo_abbrv[75:149]
+
+##### FULL BETA PLOT #####
+beta_plot_df = beta_df %>%
+  mutate(
+    Species = factor(
+      Species,
+      levels = species_order_phylo_abbrv),
+    Variable = factor(
+      Variable,
+      levels = PA_model$covNames))
+
+# create full beta heatmap
+p_beta_full = ggplot(
+  beta_plot_df,
+  aes(x = Variable, y = Species, fill = Sign95)) +
+  geom_tile(
+    colour = "grey80",
+    linewidth = 0.3) +
+  scale_fill_manual(
+    name = NULL,
+    values = c(
+      "Negative" = "darkred",
+      "No effect" = "white",
+      "Positive" = "darkblue",
+      "Poor convergence" = "grey40"),
+    breaks = c(
+      "Negative",
+      "No effect",
+      "Positive",
+      "Poor convergence"),
+    labels = c(
+      "Negative",
+      "No effect",
+      "Positive",
+      "Poor \u03b2 convergence \u2013 not interpreted"),
+    drop = FALSE) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  labs(
+    x = NULL,
+    y = NULL) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5,
+      colour = "black"),
+    axis.text.y = element_text(
+      face = "italic",
+      colour = "black"),
+    legend.position = "top")
+
+# save full beta plot
+jpeg(
+  filename = here("Figures", "PA_Model", "Beta_Plot_Phylogenetic.jpg"),
+  width = 10,
+  height = 12,
+  units = "in",
+  res = 600,
+  quality = 100)
+
+print(p_beta_full)
+
+dev.off()
+
+tiff(
+  filename = here("Figures", "PA_Model", "Beta_Plot_Phylogenetic.tiff"),
+  width = 10,
+  height = 12,
+  units = "in",
+  res = 600,
+  compression = "lzw")
+
+print(p_beta_full)
+
+dev.off()
+
+##### BETA PLOT 1 #####
+beta_plot_1_df = beta_df %>%
+  filter(Species %in% species_group1) %>%
+  mutate(
+    Species = factor(
+      Species,
+      levels = species_group1),
+    Variable = factor(
+      Variable,
+      levels = PA_model$covNames))
+
+p_beta_1 = ggplot(
+  beta_plot_1_df,
+  aes(x = Variable, y = Species, fill = Sign95)) +
+  geom_tile(
+    colour = "grey80",
+    linewidth = 0.3) +
+  scale_fill_manual(
+    name = NULL,
+    values = c(
+      "Negative" = "darkred",
+      "No effect" = "white",
+      "Positive" = "darkblue",
+      "Poor convergence" = "grey40"),
+    breaks = c(
+      "Negative",
+      "No effect",
+      "Positive",
+      "Poor convergence"),
+    labels = c(
+      "Negative",
+      "No effect",
+      "Positive",
+      "Poor \u03b2 convergence \u2013 not interpreted"),
+    drop = FALSE) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  labs(
+    x = NULL,
+    y = NULL) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5,
+      colour = "black"),
+    axis.text.y = element_text(
+      face = "italic",
+      colour = "black"),
+    legend.position = "top")
+
+jpeg(
+  filename = here("Figures", "PA_Model", "Beta_Plot_1_Phylogenetic.jpg"),
+  width = 6,
+  height = 12,
+  units = "in",
+  res = 600,
+  quality = 100)
+
+print(p_beta_1)
+
+dev.off()
+
+tiff(
+  filename = here("Figures", "PA_Model", "Beta_Plot_1_Phylogenetic.tiff"),
+  width = 6,
+  height = 12,
+  units = "in",
+  res = 600,
+  compression = "lzw")
+
+print(p_beta_1)
+
+dev.off()
+
+##### BETA PLOT 2 #####
+beta_plot_2_df = beta_df %>%
+  filter(Species %in% species_group2) %>%
+  mutate(
+    Species = factor(
+      Species,
+      levels = species_group2),
+    Variable = factor(
+      Variable,
+      levels = PA_model$covNames))
+
+p_beta_2 = ggplot(
+  beta_plot_2_df,
+  aes(x = Variable, y = Species, fill = Sign95)) +
+  geom_tile(
+    colour = "grey80",
+    linewidth = 0.3) +
+  scale_fill_manual(
+    name = NULL,
+    values = c(
+      "Negative" = "darkred",
+      "No effect" = "white",
+      "Positive" = "darkblue",
+      "Poor convergence" = "grey40"),
+    breaks = c(
+      "Negative",
+      "No effect",
+      "Positive",
+      "Poor convergence"),
+    labels = c(
+      "Negative",
+      "No effect",
+      "Positive",
+      "Poor \u03b2 convergence \u2013 not interpreted"),
+    drop = FALSE) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  labs(
+    x = NULL,
+    y = NULL) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5,
+      colour = "black"),
+    axis.text.y = element_text(
+      face = "italic",
+      colour = "black"),
+    legend.position = "top")
+
+jpeg(
+  filename = here("Figures", "PA_Model", "Beta_Plot_2_Phylogenetic.jpg"),
+  width = 6,
+  height = 12,
+  units = "in",
+  res = 600,
+  quality = 100)
+
+print(p_beta_2)
+
+dev.off()
+
+tiff(
+  filename = here("Figures", "PA_Model", "Beta_Plot_2_Phylogenetic.tiff"),
+  width = 6,
+  height = 12,
+  units = "in",
+  res = 600,
+  compression = "lzw")
+
+print(p_beta_2)
+
+dev.off()
+
+# # one figure per variable:
+# # now, for each variable, plot the posterior mean beta for each species. shade the dots
+# # based on whether the coefficient is negative, positive, or negligible at the 95% support
+# # level. because there are so many species, also add a tally in the legend at the bottom.
+# # save a separate jpeg file for each variable. 
+# vars = setdiff(PA_model$covNames, "(Intercept)")
+# out_dir = here("Figures", "PA_Model")
+# dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+# 
+# for (v in vars) {
+#   
+#   d = filter(beta_df_filt, Variable == v)
+#   
+#   # counts for legend labels
+#   n_pos = sum(d$Sign95 == "Positive")
+#   n_neg = sum(d$Sign95 == "Negative")
+#   n_none = sum(d$Sign95 == "No_Effect")
+#   
+#   legend_labels = c(
+#     Positive  = paste0("Positive (n = ", n_pos, ")"),
+#     Negative  = paste0("Negative (n = ", n_neg, ")"),
+#     No_Effect = paste0("None (n = ", n_none, ")"))
+#   
+#   p = ggplot(d, aes(Species, Mean, colour = Sign95)) +
+#     geom_point(size = 1.5) +
+#     geom_hline(yintercept = 0, linetype = "dashed", colour = "black") +
+#     coord_flip() +
+#     theme_bw() +
+#     theme(
+#       panel.grid.major = element_blank(),
+#       panel.grid.minor = element_blank(),
+#       axis.text.y = element_text(size = 6, face = "italic"),
+#       plot.title = element_text(hjust = 0.4),
+#       legend.position = "bottom",
+#       legend.direction = "horizontal",
+#       legend.box.margin = margin(t = -7.5),
+#       legend.title = element_text(size = 10),
+#       legend.text = element_text(size = 10),
+#       plot.margin = margin(t = 8, r = 8, b = 8, l = 10)) +
+#     scale_colour_manual(
+#       name   = "Effect (95% posterior support)",
+#       values = c(
+#         Positive  = bay[1],
+#         Negative  = bay[8],
+#         No_Effect = bay[5]),
+#       labels = legend_labels,
+#       guide  = guide_legend(nrow = 1)) +
+#     labs(title = v, x = NULL, y = "Posterior mean (Beta)")
+# 
+#   ggsave(
+#     filename = file.path(out_dir, paste0(v, ".jpeg")),
+#     plot = p,
+#     device = "jpeg",
+#     width = 8, height = 10, units = "in",
+#     dpi = 450,
+#     limitsize = FALSE)
+# }
+
+#### TRAIT EFFECTS (GAMMA) ####
+# get the posterior estimates of the gamma parameters
 postGamma = getPostEstimate(PA_model, parName = "Gamma")
-plotGamma(PA_model, 
-          post = postGamma, 
-          trNamesNumbers = c(TRUE, FALSE),
-          covNamesNumbers = c(TRUE, FALSE),
-          colors = colorRampPalette(c("darkred","white","darkblue")),
-          supportLevel = 0.95)
 
-# save the figure
-jpeg(filename = here("Figures", "PA_Model", "Gamma_Plot.jpg"), 
-     width = 8, 
-     height = 5, 
-     units = "in", 
-     res = 450)
+thresh = 0.95
 
-par(mar = c(9, 11, 0, 0),
-    mgp = c(0, 0, 0))
+# assign covariate and trait names to the gamma posterior mean matrix
+rownames(postGamma$mean) = PA_model$covNames
+colnames(postGamma$mean) = PA_model$trNames
 
-plotGamma(PA_model, 
-          post = postGamma, 
-          trNamesNumbers = c(TRUE, FALSE),
-          covNamesNumbers = c(TRUE, FALSE),
-          colors = colorRampPalette(c("darkred","white","darkblue")),
-          supportLevel = 0.95,
-          mar = c(9, 11, 0, 0))
+# convert posterior estimates to long format
+gamma_df = as.data.frame(as.table(postGamma$mean))
+names(gamma_df) = c("Variable", "Trait", "Mean")
+
+# add posterior support
+gamma_df$Support_Pos = as.vector(postGamma$support)
+gamma_df$Support_Neg = as.vector(postGamma$supportNeg)
+
+# classify according to 95% posterior support
+gamma_df = gamma_df %>%
+  mutate(Sign95 = case_when(
+    Support_Pos >= thresh ~ "Positive",
+    Support_Neg >= thresh ~ "Negative",
+    TRUE ~ "No effect"))
+
+# preserve desired ordering
+gamma_df = gamma_df %>%
+  mutate(
+    Variable = factor(Variable, levels = PA_model$covNames),
+    Trait = factor(Trait, levels = PA_model$trNames))
+
+# create gamma heatmap
+p_gamma = ggplot(
+  gamma_df,
+  aes(x = Variable, y = Trait, fill = Sign95)) +
+  geom_tile(
+    colour = "grey80",
+    linewidth = 0.3) +
+  scale_fill_manual(
+    name = NULL,
+    values = c(
+      "Negative" = "darkred",
+      "No effect" = "white",
+      "Positive" = "darkblue"),
+    breaks = c(
+      "Negative",
+      "No effect",
+      "Positive"),
+    labels = c(
+      "Negative",
+      "No effect",
+      "Positive"),
+    drop = FALSE) +
+  scale_x_discrete(
+    expand = c(0, 0)) +
+  scale_y_discrete(
+    expand = c(0, 0)) +
+  labs(
+    x = NULL,
+    y = NULL) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_text(
+      colour = "black",
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5),
+    axis.text.y = element_text(
+      colour = "black"),
+    axis.title.x = element_text(
+      colour = "black"),
+    axis.title.y = element_text(
+      colour = "black"),
+    legend.text = element_text(
+      colour = "black"),
+    legend.position = "top")
+
+jpeg(
+  filename = here("Figures", "PA_Model", "Gamma_Plot.jpg"),
+  width = 8,
+  height = 5,
+  units = "in",
+  res = 450)
+
+print(p_gamma)
 
 dev.off()
 
@@ -342,7 +822,7 @@ round(((vp_ungrouped$R2T$Beta)*100), 2) # as a percentage, rather than proportio
 vp_ungrouped$R2T$Y
 round(((vp_ungrouped$R2T$Y)*100), 2) # as a percentage, rather than proportion
 
-#### PHYLOGENETIC SIGNAL ####
+#### PHYLOGENETIC SIGNAL (RHO) ####
 # next evaluate the posterior distribution of the phylogenetic signal in species niches.
 # a rho of 0 would mean phylogeny explains nothing (species niches are independent of
 # evolutionary history), while rho of 1 would mean phylogeny perfectly predicts niches 
@@ -367,14 +847,15 @@ ggplot(data.frame(Rho = rho_samples_flat), aes(x = Rho)) +
         panel.grid.minor = element_blank(),
         axis.text = element_text(color = "black"))
 
-# these results indicate a moderate phylogenetic signal - closely related
-# species tend to respond similarly to environmental conditions. about 
-# 51% of the variation in species' niches can be attributed to shared evolutionary 
-# history (BUT NOTE that this assumes we are not missing any important environmental
+# a moderate phylogenetic signal was detected in species’ responses to environmental 
+# covariates (posterior mean of ρ = 0.46). That is, closely related species tended to 
+# exhibit more similar environmental responses than would be expected by chance, 
+# consistent with phylogenetic structuring of species–environment relationships.
+# (BUT NOTE that this assumes we are not missing any important environmental
 # covariates or functional traits).
 
 #### RESIDUAL SPECIES ASSOCIATIONS ####
-##### co-occurrence matrix for only significant pairwise associations (+/-1) ##### 
+#####  MATRIX OF ONLY SIGNIFICANT PAIRWISE ASSOCIATIONS ##### 
 require(corrplot)
 OmegaCor = computeAssociations(PA_model)
 supportLevel = 0.95
@@ -412,7 +893,7 @@ corrplot(toPlot_sub,
          type = "lower",
          font = 3,
          outline = TRUE,
-         addgrid.col = "gray40",
+         addgrid.col = "grey80",
          tl.cex = 0.625,
          tl.col = "black",
          tl.srt = 45,
@@ -423,14 +904,14 @@ corrplot(toPlot_sub,
 
 # save the figure
 jpeg(filename = here("Figures", "PA_Model", "Omega_Plot_Significant_Only.jpg"), 
-     width = 10, height = 10, units = "in", res = 450)
+     width = 10, height = 10, units = "in", res = 450, quality = 100)
 par(mar = c(0, 0, 0, 0), xpd = TRUE)
 corrplot(toPlot_sub, 
          method = "color",
          type = "lower",
          font = 3,
          outline = TRUE,
-         addgrid.col = "gray40",
+         addgrid.col = "grey80",
          tl.cex = 0.625,
          tl.col = "black",
          tl.srt = 45,
@@ -442,7 +923,7 @@ dev.off()
 
 gc()
 
-##### full co-occurrence matrix #####
+##### FULL CO-OCCURRENCE MATRIX #####
 # this is the correlation matrix for the full community (all omegas), including 
 # non-significant pairwise associations
 OmegaCor = computeAssociations(PA_model)
