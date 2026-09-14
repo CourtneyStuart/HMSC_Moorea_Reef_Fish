@@ -42,11 +42,11 @@ list.files(model.directory)
 
 # read in the results file
 nChains = 4
-samples = 1000
-thin = 100
+samples = 4000
+thin = 50
 filename = file.path(model.directory, 
                      paste0("PA_model_chains_", as.character(nChains),
-                            "_samples_",as.character(samples),
+                            "_total_samples_",as.character(samples),
                             "_thin_",as.character(thin),".rda"))
 load(filename)
 
@@ -55,58 +55,28 @@ mpost = convertToCodaObject(PA_model,
                             spNamesNumbers = c(T,F),
                             covNamesNumbers = c(T,F))
 
+##### BETA #####
 # compute the effective sample sizes for beta
 es.beta = effectiveSize(mpost$Beta)
 summary(es.beta) # look at the spread of effective sample sizes
 
-# which parameters had an effective sample size for beta < 100?
-low.es.beta = es.beta[es.beta < 100]
+# which parameters had an effective sample size for beta <= 100?
+low.es.beta = es.beta[es.beta <= 100]
 print(low.es.beta)
 
-# interesting, there seems to be a localized issue with 8 parameters 
-# for Neocirrhites.armatus
-
-# is this a problem relating to species rarity?
+# is this a problem relating to species rarity? look at some examples...
 Y_data = as.data.frame(PA_model$Y)
+sum(Y_data$Centropyge.flavissima)
 sum(Y_data$Neocirrhites.armatus)
-# there were 131  Neocirrhites.armatus presences, so they're not rare
-# let's move forward but keep this in mind...
+sum(Y_data$Zebrasoma.scopas)
+# rarity doesn't seem to be the issue, let's move forward but keep this in mind...
 
 # calculate the PSRF values for beta - ideally, we want all PSRF <= 1.1
 psrf.beta = gelman.diag(mpost$Beta, multivariate = FALSE)$psrf
 summary(psrf.beta) # look at the spread of values
 
-# check the problematic (PSRF > 1.1) parameters for Neocirrhites.armatus
-N.armatus.psrf = (as.data.frame(psrf.beta))[grepl("Neocirrhites\\.armatus", 
-                                                  rownames(psrf.beta)), ]
-N.armatus.psrf[N.armatus.psrf$`Point est.` > 1.1, ]
-
-# as a reminder, here are the ESS issues:
-low.es.beta
-
-# parameters with ESS <100 correspond to those with PSRF >1.1, indicating localized,
-# species-specific convergence issues. overall community-level inference is likely
-# robust given strong convergence across most parameters; however, caution is warranted
-# when interpreting environmental relationships for this species, as confidence in its
-# beta estimates is reduced.
-
-# to look at all omega PSRFs we run the line below; however, we have many
-# species pairs (with 142 unique species) so this takes a lot of time and 
-# computational effort!!!
-#psrf.omega = gelman.diag(mpost$Omega[[1]], multivariate = FALSE)$psrf
-
-# instead, for omega, we can take a sub-sample of 5000 randomly selected species 
-# pairs to avoid excessive computations.
-tmp = mpost$Omega[[1]]
-z = ncol(tmp[[1]])
-sel = sample(z, size = 5000)
-
-# here we take the subset of species pairs + loop over the 4 MCMC chains
-for(i in 1:length(tmp)){
-   tmp[[i]] = tmp[[i]][,sel]}
-
-psrf.omega = gelman.diag(tmp, multivariate = FALSE)$psrf
-summary(psrf.omega) # look at the spread of values
+# identify the beta parameters that did not converge
+unconverged_beta = as.data.frame(which(psrf.beta[, "Point est."] > 1.1))
 
 # what percentage of the beta point estimates are <= 1.1?
 round((sum(psrf.beta[, "Point est."] <= 1.1) / 
@@ -118,74 +88,119 @@ round((sum(psrf.beta[, "Upper C.I."] <= 1.1) /
          length(psrf.beta[, "Upper C.I."]) * 100),
       digits = 2)
 
+# PSRF values for beta indicate excellent overall convergence, with 98.53% of point
+# estimates and 95.93% of upper CI estimates <= 1.1. this suggests reliable estimation
+# of species’ responses to environmental covariates (fixed effects).
+
+# save data for species–covariate pairs for which β parameters did not achieve
+# satisfactory convergence
+i = which(psrf.beta[, "Point est."] > 1.1)
+x = strsplit(gsub("^B\\[|\\]$", "", rownames(psrf.beta)[i]), ", ")
+supp_table = data.frame(
+  Species = sapply(x, `[`, 2), Covariate = sapply(x, `[`, 1),
+  ESS = es.beta[rownames(psrf.beta)[i]],
+  PSRF_point_est = psrf.beta[i, 1], PSRF_upper_CI = psrf.beta[i, 2])
+supp_table[sapply(supp_table, is.numeric)] = round(supp_table[sapply(supp_table, is.numeric)], 2)
+write.csv(supp_table, here("HMSC", "Data", "Unconverged_Betas_PA_Model.csv"),
+          row.names = FALSE)
+
+##### OMEGA #####
+# to look at all omega PSRFs we run the line below
+# WARNING, we have many species pairs (with 149 unique species) so this takes
+# a lot of time and computational effort!!!
+psrf.omega = gelman.diag(mpost$Omega[[1]], multivariate = FALSE)$psrf
+
+# if we're short on time, we can instead take a sub-sample of 5000 randomly
+# selected species pairs to avoid excessive computations and get a rough look
+# at things
+# tmp = mpost$Omega[[1]]
+# z = ncol(tmp[[1]])
+# sel = sample(z, size = 5000)
+# 
+# # here we take the subset of species pairs + loop over the 4 MCMC chains
+# for(i in 1:length(tmp)){
+#    tmp[[i]] = tmp[[i]][,sel]}
+# 
+# psrf.omega = gelman.diag(tmp, multivariate = FALSE)$psrf
+# summary(psrf.omega) # look at the spread of values
+
+# keep only the upper triangle of the 149 x 149 omega matrix, excluding the
+# diagonal, so that each unique species pair is counted only once
+keep = upper.tri(matrix(FALSE, 149, 149), diag = FALSE)
+
+# select the corresponding PSRF rows
+psrf.omega.unique = psrf.omega[as.vector(keep), , drop = FALSE]
+summary(psrf.omega.unique) # look at the spread of values
+
+# check number of unique species pairs
+nrow(psrf.omega.unique) # this should be 11026
+
+# identify omega estimates that did not converge (unique species pairs with point
+# estimate PSRF > 1.1)
+unconverged_omega = as.data.frame(
+  which(psrf.omega.unique[, "Point est."] > 1.1))
+nrow(unconverged_omega)
+
 # what percentage of the omega point estimates are <= 1.1?
-round((sum(psrf.omega[, "Point est."] <= 1.1) / 
-         length(psrf.omega[, "Point est."]) * 100),
+round((sum(psrf.omega.unique[, "Point est."] <= 1.1) /
+         length(psrf.omega.unique[, "Point est."]) * 100),
       digits = 2)
 
 # what percentage of the omega upper CI estimates are <= 1.1? (stricter assessment)
-round((sum(psrf.omega[, "Upper C.I."] <= 1.1) / 
-         length(psrf.omega[, "Upper C.I."]) * 100),
+round((sum(psrf.omega.unique[, "Upper C.I."] <= 1.1) /
+         length(psrf.omega.unique[, "Upper C.I."]) * 100),
       digits = 2)
 
-# identify the beta parameters that did not converge
-unconverged_beta = as.data.frame(which(psrf.beta[, "Point est."] > 1.1))
+# PSRF values for omega indicate good overall convergence, with 94.6% of point
+# estimates and 87.23% of upper CI estimates <= 1.1.
 
-# identify the omega parameters that did not converge (of the 5000 subsampled)
-unconverged_omega = as.data.frame(which(psrf.omega[, "Point est."] > 1.1))
-
-# PSRF values for beta indicate good convergence, with >97% of point estimates <=1.1
-# and ~91% under the stricter upper CI criterion. this suggests reliable estimation
-# of species’ responses to environmental covariates (fixed effects). in contrast, 
-# PSRF values for omega are lower, with ~35% of point estimates and ~20% of upper CI 
-# values <=1.1. This indicates limited confidence in estimates of residual
-# species co-occurrence, likely  due to the species-rich nature of Moorea's fish 
-# community. so, residual associations should be interpreted very cautiously. 
-
+##### GAMMA #####
 # now check the gamma parameters
-if("Gamma" %in% names(mpost)) {
-  gamma_params = mpost$Gamma
-    gamma_params = as.mcmc.list(gamma_params)
-    library(coda)
-  psrf.gamma = gelman.diag(gamma_params, multivariate = FALSE)
-}
+gamma_params = as.mcmc.list(mpost$Gamma)
 
 # look at the spread of ESS for the gamma parameters
 es.gamma = effectiveSize(gamma_params)
 print(summary(es.gamma))
 
+# which parameters had an effective sample size for gamma < 100?
+low.es.gamma = es.gamma[es.gamma <= 100]
+print(low.es.gamma)
+
 # calculate the PSRFs
-gamma_params = mpost$Gamma
-psrf.gamma = gelman.diag(gamma_params, multivariate = FALSE)
+psrf.gamma = gelman.diag(gamma_params, multivariate = FALSE)$psrf
 
 # look at the spread of gamma PSRFs
-summary(psrf.gamma$psrf)
-max((psrf.gamma$psrf)[, "Point est."])
+summary(psrf.gamma)
 
 # what percentage of the gamma point estimates are <= 1.1?
-round((sum((psrf.gamma$psrf)[, "Point est."] <= 1.1) /
-         length((psrf.gamma$psrf)[, "Point est."]) * 100),
+round((sum(psrf.gamma[, "Point est."] <= 1.1) /
+         length(psrf.gamma[, "Point est."]) * 100),
       digits = 2)
 
 # what percentage of the gamma upper CI estimates are <= 1.1? (stricter assessment)
-round((sum((psrf.gamma$psrf)[, "Upper C.I."] <= 1.1) / 
-         length((psrf.gamma$psrf)[, "Upper C.I."]) * 100),
+round((sum(psrf.gamma[, "Upper C.I."] <= 1.1) /
+         length(psrf.gamma[, "Upper C.I."]) * 100),
       digits = 2)
 
-# PSRF values for gamma indicate excellent convergence, with 100% <=1.1 for both
-# point estimates and the stricter upper CI criterion.
+# identify the gamma parameters that potentially did not converge
+# (point estimate PSRF > 1.1)
+unconverged_gamma = as.data.frame(
+  which(psrf.gamma[, "Point est."] > 1.1))
+
+# PSRF values for gamma indicate excellent convergence, with 100% of point
+# estimates and upper CI estimates <= 1.1.
 
 #### MULTI-PANEL PSRF PLOT ####
-# make a three panel plot to show the PSRF spread for each of the paramaters
+# make a three panel plot to show the PSRF spread for each of the parameters
 
 # prepare the data (ordered here to match the order of the manuscript results section)
 df_beta = data.frame(psrf = psrf.beta[, "Point est."], 
                      parameter = "Beta")
 
-df_gamma = data.frame(psrf = (psrf.gamma$psrf)[, "Point est."], 
-                      parameter = "Gamma")
+df_gamma = data.frame(psrf = psrf.gamma[, "Point est."], 
+                     parameter = "Gamma")
 
-df_omega = data.frame(psrf = psrf.omega[, "Point est."], 
+df_omega = data.frame(psrf = psrf.omega.unique[, "Point est."], 
                       parameter = "Omega")
 
 # create the individual plots
@@ -234,6 +249,7 @@ combined_plot = p1 + p2 + p3 +
   plot_annotation(tag_levels = 'a',
                   tag_prefix = '(',
                   tag_suffix = ')')
+combined_plot
 
 # save the plot as a figure
 ggsave(here("Figures", "PA_model", "Convergence_PSRFs.jpeg"),
@@ -309,7 +325,7 @@ ggplot(df_beta_sample,
 
 ggsave(plot = last_plot(),
        filename = here("Figures", "PA_Model",
-                       "Beta_Trace_Random_Sample_4Chains_1000Samples_100Thin.jpg"),
+                       "Beta_Trace_Random_Sample_4Chains_4000Samples_50Thin.jpg"),
        width = 8, height = 10, units = "in", dpi = 300)
 
 # look at a few random species from the community as examples...
@@ -336,7 +352,7 @@ ggplot(df_beta_sp1,
 
 ggsave(plot = last_plot(),
        filename = here("Figures", "PA_Model",
-                       "Beta_Trace_A_septemfasciatus_4Chains_1000Samples_100Thin.jpg"),
+                       "Beta_Trace_A_septemfasciatus_4Chains_4000Samples_50Thin.jpg"),
        width = 8, height = 10, units = "in", dpi = 300)
 
 # look at all parameters for Acanthurus.triostegus
@@ -361,7 +377,7 @@ ggplot(df_beta_sp2,
 
 ggsave(plot = last_plot(),
        filename = here("Figures", "PA_Model",
-                       "Beta_Trace_A_triostegus_4Chains_1000Samples_100Thin.jpg"),
+                       "Beta_Trace_A_triostegus_4Chains_4000Samples_50Thin.jpg"),
        width = 8, height = 10, units = "in", dpi = 300)
 
 # look at all parameters for Scarus.altipinnis
@@ -386,5 +402,5 @@ ggplot(df_beta_sp3,
 
 ggsave(plot = last_plot(),
        filename = here("Figures", "PA_Model",
-                       "Beta_Trace_S_altipinnis_4Chains_1000Samples_100Thin.jpg"),
+                       "Beta_Trace_S_altipinnis_4Chains_4000Samples_50Thin.jpg"),
        width = 8, height = 10, units = "in", dpi = 300)
