@@ -40,34 +40,32 @@ summary(trait_hmsc)
 
 #### DEFINE THE MODELS ####
 # define the presence-absence model
-PA_model = Hmsc(Y = Y_PA,
-                XData = as.data.frame(X_scaled),
-                # specify which predictors to use
-                XFormula = ~ HabitatForereef + HabitatFringing + COTS +
-                  Max_DHW + Cyclone1 + Cyclone2 + Cyclone3 + Land_Dist + 
-                  Depth_Mean_100m + Depth_Mean_500m +
-                  Curvature_Mean_100m + Curvature_Mean_500m +
-                  Coral_Mean_Cover + Macroalgae_Mean_Cover + CTB_Mean_Cover,
-                TrData = trait_hmsc,  
-                # specify which traits to use
-                TrFormula = ~ Body_Shape + Max_TL_cm + Trophic_Level +
-                  Reproductive_Mode + Spawn_Agg, 
-                phyloTree = tree, 
-                studyDesign = study_design, 
-                ranLevels = list(site = rL.site, 
-                                 year = rL.year),
-                distr = "probit")
+PA_model = Hmsc(
+  Y = Y_PA,
+  XData = data_PA,
+  XFormula = ~ Habitat + COTS + Max_DHW + Cyclone +
+    Land_Dist + Depth_Mean_100m + Depth_Mean_500m +
+    Curvature_Mean_100m + Curvature_Mean_500m +
+    Coral_Mean_Cover + Macroalgae_Mean_Cover + CTB_Mean_Cover,
+  TrData = trait_hmsc,
+  TrFormula = ~ Body_Shape + Max_TL_cm + Trophic_Level +
+    Reproductive_Mode + Spawn_Agg,
+  phyloTree = tree,
+  studyDesign = study_design,
+  ranLevels = list(site = rL.site,
+                   year = rL.year),
+  distr = "probit",
+  XScale = TRUE,
+  TrScale = TRUE)
 
 #### MCMC SETTINGS ####
 nParallel = 4
 nChains = 4
-# samples = 500 # 500 samples per chain = 2000 total
-samples = 250 # 250 samples per chain = 1000 total
-thin = 100
-transient = 5000
+samples = 1000 # 1000 samples per chain = 4000 total
+thin = 50
+transient = 10000
 # total iterations per chain = transient + (samples * thin) = 
-# 55000 iterations = 5000 transient + (500 samples * 100 thin)
-# 30000 iterations = 5000 transient + (250 samples * 100 thin)
+# 60000 iterations = 10000 transient + (1000 samples * 50 thin)
 
 ##### PA Model #####
 cat("PA Model - thin =", thin, ", transient =", transient, "\n")
@@ -81,8 +79,7 @@ PA_model = sampleMcmc(PA_model,
                       transient = transient,
                       nChains = nChains, 
                       nParallel = nParallel,
-                      initPar = "fixed effects",
-                      verbose = 1000)
+                      initPar = "fixed effects")
 end_time = Sys.time()
 
 cat("Completed in:", difftime(end_time, start_time, units = "mins"), "minutes\n")
@@ -90,7 +87,7 @@ cat("Completed in:", difftime(end_time, start_time, units = "mins"), "minutes\n"
 # save outputs
 filename = file.path(model_directory, 
                      paste0("PA_model_chains_", nChains, 
-                            "_samples_", samples * nChains,  # total samples
+                            "_total_samples_", samples * nChains,  # total samples
                             "_thin_", thin, ".rda"))
 save(PA_model, file = filename)
 cat("Saved:", filename, "\n\n")
