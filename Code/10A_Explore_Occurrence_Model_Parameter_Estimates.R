@@ -855,185 +855,334 @@ ggplot(data.frame(Rho = rho_samples_flat), aes(x = Rho)) +
 # covariates or functional traits).
 
 #### RESIDUAL SPECIES ASSOCIATIONS ####
-#####  MATRIX OF ONLY SIGNIFICANT PAIRWISE ASSOCIATIONS ##### 
 require(corrplot)
+
+# Calculate posterior estimates and support for the Omega matrix
 OmegaCor = computeAssociations(PA_model)
 supportLevel = 0.95
 
-# build sign matrix (1 = positive assoc, -1 = negative assoc, 0 = no strong support)
-toPlot = ((OmegaCor[[1]]$support > supportLevel) |
-            (OmegaCor[[1]]$support < (1 - supportLevel))) * OmegaCor[[1]]$mean
-toPlot = sign(toPlot)
-diag(toPlot) = 0 # remove the diagonal (species self pairs automatically have +1 association)
+# posterior mean and support
+Omega_mean = OmegaCor[[1]]$mean
+Omega_support = OmegaCor[[1]]$support
 
 # species names
-sp_names = rownames(OmegaCor[[1]]$mean)
-if (is.null(sp_names)) sp_names = as.character(seq_len(nrow(OmegaCor[[1]]$mean)))
+sp_names = rownames(Omega_mean)
 
-# find species with at least one non-zero association
-keep_species = sp_names[rowSums(abs(toPlot)) > 0]
+# Load previously calculated Omega PSRF values
+# Load only the saved unique-pair PSRF object
+tmp = new.env()
 
-if (length(keep_species) == 0) {
-  stop("No species have >= 95% posterior support for positive OR negative residual correlations.")
-} else if (length(keep_species) == 1) {
-  stop("Only one species has significant associations — nothing to plot as a matrix.")
+load(
+  here("HMSC", "Models", "07A_Evaluate_Occurrence_Model_Convergence.RData"),
+  envir = tmp)
+
+psrf.omega.unique = tmp$psrf.omega.unique
+
+rm(tmp)
+
+# identify unique species pairs with >=95% posterior support
+# use upper triangle only so each unique species pair occurs once
+upper = upper.tri(Omega_support)
+
+# positive associations: posterior support >=95%
+idx_pos = which(
+  Omega_support >= supportLevel & upper,
+  arr.ind = TRUE)
+
+# negative associations: posterior support <=5%,
+# corresponding to >=95% posterior support for a negative association
+idx_neg = which(
+  Omega_support <= (1 - supportLevel) & upper,
+  arr.ind = TRUE)
+
+# create tables of posterior-supported associations
+positive_pairs = data.frame(
+  Species_1 = sp_names[idx_pos[, 1]],
+  Species_2 = sp_names[idx_pos[, 2]],
+  Support = Omega_support[idx_pos],
+  stringsAsFactors = FALSE)
+
+negative_pairs = data.frame(
+  Species_1 = sp_names[idx_neg[, 1]],
+  Species_2 = sp_names[idx_neg[, 2]],
+  Support = Omega_support[idx_neg],
+  stringsAsFactors = FALSE)
+
+# create the exact Omega parameter names used in the PSRF output
+positive_pairs$parameter = paste0(
+  "Omega1[",
+  positive_pairs$Species_1,
+  ", ",
+  positive_pairs$Species_2,
+  "]")
+
+negative_pairs$parameter = paste0(
+  "Omega1[",
+  negative_pairs$Species_1,
+  ", ",
+  negative_pairs$Species_2,
+  "]")
+
+# match PSRF values to each posterior-supported association
+positive_pairs$PSRF = psrf.omega.unique[
+  match(
+    positive_pairs$parameter,
+    rownames(psrf.omega.unique)
+  ),
+  "Point est."]
+
+negative_pairs$PSRF = psrf.omega.unique[
+  match(
+    negative_pairs$parameter,
+    rownames(psrf.omega.unique)
+  ),
+  "Point est."]
+
+# check that all supported associations matched to a PSRF value
+if (any(is.na(positive_pairs$PSRF)) ||
+    any(is.na(negative_pairs$PSRF))) {
+  stop("One or more posterior-supported Omega associations could not be matched to a PSRF value.")
 }
 
-# preserve ordering
-plotOrder = corrMatOrder(OmegaCor[[1]]$mean, order = "AOE")
-plotOrder_names = sp_names[plotOrder]
-keep_order_names = plotOrder_names[plotOrder_names %in% keep_species]
+# retain only associations satisfying BOTH criteria:
+# >=95% posterior support AND PSRF <=1.1
+positive_pairs_converged = positive_pairs %>%
+  filter(PSRF <= 1.1)
 
-# subset matrix
-toPlot_sub = toPlot[keep_order_names, keep_order_names]
+negative_pairs_converged = negative_pairs %>%
+  filter(PSRF <= 1.1)
 
-# plot
-corrplot(toPlot_sub, 
-         method = "color",
-         type = "lower",
-         font = 3,
-         outline = TRUE,
-         addgrid.col = "grey80",
-         tl.cex = 0.625,
-         tl.col = "black",
-         tl.srt = 45,
-         cl.cex = 1.5,
-         col = c("darkred", "white", "darkblue"),
-         is.corr = FALSE,
-         cl.length = 3)
+# final numbers of interpretable associations
+n_positive = nrow(positive_pairs_converged)
+n_negative = nrow(negative_pairs_converged)
+n_total = n_positive + n_negative
+
+print(n_positive)
+print(n_negative)
+print(n_total)
+
+# expected:
+# 963 positive
+# 365 negative
+# 1328 total
+
+# build the final plotting matrix
+# start with a matrix of zeros
+toPlot = matrix(
+  0,
+  nrow = nrow(Omega_mean),
+  ncol = ncol(Omega_mean),
+  dimnames = dimnames(Omega_mean))
+
+# add converged positive associations
+if (nrow(positive_pairs_converged) > 0) {
+  
+  for (i in seq_len(nrow(positive_pairs_converged))) {
+    
+    sp1 = positive_pairs_converged$Species_1[i]
+    sp2 = positive_pairs_converged$Species_2[i]
+    
+    toPlot[sp1, sp2] = 1
+    toPlot[sp2, sp1] = 1}}
+
+# add converged negative associations
+if (nrow(negative_pairs_converged) > 0) {
+  
+  for (i in seq_len(nrow(negative_pairs_converged))) {
+    
+    sp1 = negative_pairs_converged$Species_1[i]
+    sp2 = negative_pairs_converged$Species_2[i]
+    
+    toPlot[sp1, sp2] = -1
+    toPlot[sp2, sp1] = -1}}
+
+# remove the diagonal
+diag(toPlot) = 0
+
+# order the species according to the association matrix
+plotOrder = corrMatOrder(
+  Omega_mean,
+  order = "AOE")
+
+make_unique_abbrev = function(names) {
+  
+  # expects "Genus.species" (first dot used as separator)
+  genus = sub("\\..*$", "", names)
+  species = sub("^[^.]*\\.", "", names)
+  
+  n = length(genus)
+  len = rep(1L, n)
+  
+  # start with first letter of genus
+  build = function(l) {
+    paste0(substr(genus, 1, l), ". ", species)
+  }
+  
+  labels = build(len)
+  
+  # progressively lengthen genus abbreviation where needed
+  while(any(duplicated(labels))) {
+    
+    dup = labels[
+      duplicated(labels) |
+        duplicated(labels, fromLast = TRUE)
+    ]
+    
+    idx = which(labels %in% dup)
+    
+    len[idx] = pmin(
+      nchar(genus[idx]),
+      len[idx] + 1L
+    )
+    
+    labels = build(len)
+    
+    # safeguard if duplicates remain after using full genus names
+    if(all(len == nchar(genus)) &&
+       any(duplicated(labels))) {
+      
+      labels = make.unique(labels, sep = " ")
+      break
+    }
+  }
+  
+  labels
+}
+
+# preserve full species names
+full_species = rownames(toPlot)
+
+# generate abbreviated names
+abbrv_species = make_unique_abbrev(full_species)
+
+# change ONLY the display names of the final plotting matrix
+rownames(toPlot) = abbrv_species
+colnames(toPlot) = abbrv_species
+
+# plot the full community matrix
+corrplot(
+  toPlot[plotOrder, plotOrder],
+  method = "color",
+  type = "lower",
+  font = 3,
+  outline = TRUE,
+  addgrid.col = "gray40",
+  tl.cex = 0.625,
+  tl.col = "black",
+  tl.srt = 45,
+  cl.cex = 1.5,
+  col = c("darkred", "white", "darkblue"),
+  is.corr = FALSE,
+  cl.length = 3)
 
 # save the figure
-jpeg(filename = here("Figures", "PA_Model", "Omega_Plot_Significant_Only.jpg"), 
-     width = 10, height = 10, units = "in", res = 450, quality = 100)
+jpeg(
+  filename = here(
+    "Figures",
+    "PA_Model",
+    "Omega_Plot_Full_Converged.jpg"),
+  width = 16,
+  height = 16,
+  units = "in",
+  res = 450)
+
+par(
+  mar = c(0, 0, 0, 0),
+  xpd = TRUE)
+
+corrplot(
+  toPlot[plotOrder, plotOrder],
+  method = "color",
+  type = "lower",
+  font = 3,
+  outline = TRUE,
+  addgrid.col = "gray40",
+  tl.cex = 0.625,
+  tl.col = "black",
+  tl.srt = 45,
+  cl.cex = 1.5,
+  col = c("darkred", "white", "darkblue"),
+  is.corr = FALSE,
+  cl.length = 3)
+
+dev.off()
+
+gc()
+
+# create simplified matrix containing only species with >=1 interpretable
+# residual association
+keep_species = rownames(toPlot)[
+  rowSums(abs(toPlot)) > 0]
+
+if (length(keep_species) == 0) {
+  stop("No species have residual associations meeting both the posterior support and PSRF criteria.")
+} else if (length(keep_species) == 1) {
+  stop("Only one species has an interpretable residual association.")
+}
+
+# subset the final convergence-filtered matrix
+toPlot_sub = toPlot[keep_species, keep_species, drop = FALSE]
+
+# determine ordering for the simplified matrix
+plotOrder_sub = corrMatOrder(
+  toPlot_sub,
+  order = "AOE")
+
+corrplot(
+  toPlot_sub[plotOrder_sub, plotOrder_sub],
+  method = "color",
+  type = "lower",
+  font = 3,
+  outline = TRUE,
+  addgrid.col = "grey80",
+  tl.cex = 0.625,
+  tl.col = "black",
+  tl.srt = 45,
+  cl.cex = 1.5,
+  col = c("darkred", "white", "darkblue"),
+  is.corr = FALSE,
+  cl.length = 3)
+
+jpeg(
+  filename = here(
+    "Figures",
+    "PA_Model",
+    "Omega_Plot_Significant_Converged_Only.jpg"),
+  width = 10,
+  height = 10,
+  units = "in",
+  res = 450,
+  quality = 100)
+
 par(mar = c(0, 0, 0, 0), xpd = TRUE)
-corrplot(toPlot_sub, 
-         method = "color",
-         type = "lower",
-         font = 3,
-         outline = TRUE,
-         addgrid.col = "grey80",
-         tl.cex = 0.625,
-         tl.col = "black",
-         tl.srt = 45,
-         cl.cex = 1.5,
-         col = c("darkred", "white", "darkblue"),
-         is.corr = FALSE,
-         cl.length = 3)
+
+corrplot(
+  toPlot_sub[plotOrder_sub, plotOrder_sub],
+  method = "color",
+  type = "lower",
+  font = 3,
+  outline = TRUE,
+  addgrid.col = "grey80",
+  tl.cex = 0.625,
+  tl.col = "black",
+  tl.srt = 45,
+  cl.cex = 1.5,
+  col = c("darkred", "white", "darkblue"),
+  is.corr = FALSE,
+  cl.length = 3)
+
 dev.off()
-
-gc()
-
-##### FULL CO-OCCURRENCE MATRIX #####
-# this is the correlation matrix for the full community (all omegas), including 
-# non-significant pairwise associations
-OmegaCor = computeAssociations(PA_model)
-supportLevel = 0.95
-
-toPlot = ((OmegaCor[[1]]$support>supportLevel)
-          + (OmegaCor[[1]]$support<(1-supportLevel))>0)*OmegaCor[[1]]$mean
-toPlot = sign(toPlot)
-plotOrder = corrMatOrder(OmegaCor[[1]]$mean, order = "AOE")
-
-corrplot(toPlot[plotOrder, plotOrder], 
-         method = "color",
-         type = "lower",
-         font = 3,
-         outline = TRUE,
-         addgrid.col = "gray40",
-         tl.cex = 0.625,
-         tl.col = "black",
-         tl.srt = 45,
-         cl.cex = 1.5,
-         col = c("darkred", "white", "darkblue"),
-         is.corr = FALSE,
-         cl.length = 3)
-
-# save the figure
-jpeg(filename = here("Figures", "PA_Model", "Omega_Plot_Full.jpg"), 
-     width = 16, 
-     height = 16, 
-     units = "in", 
-     res = 450)
-par(mar = c(0, 0, 0, 0),
-    xpd = TRUE)
-corrplot(toPlot[plotOrder, plotOrder], 
-         method = "color",
-         type = "lower",
-         font = 3,
-         outline = TRUE,
-         addgrid.col = "gray40",
-         tl.cex = 0.625,
-         tl.col = "black",
-         tl.srt = 45,
-         cl.cex = 1.5,
-         col = c("darkred", "white", "darkblue"),
-         is.corr = FALSE,
-         cl.length = 3)
-dev.off()
-
-gc()
-
-# identify those species with the greatest positive and negative associations
-# restore the full species names for these calculations
-colnames(PA_model$Y) = full_species
-PA_model$spNames = full_species
-
-# get the residual species co-occurrence matrix
-postOmega = getPostEstimate(PA_model, parName = "Omega")
-support = postOmega$support
-
-# use the upper triangle only (exclude diagonal self-pairs)
-upper = upper.tri(support)
-
-# find positive associations with strong support (posterior probability >= 95%)
-idx_pos = which(support >= 0.95 & upper, arr.ind = TRUE)
-
-# associations with <=0.05 posterior probability of a positive association
-# can be interpreted as having >=0.95 support for a negative association
-idx_neg = which(support <= 0.05 & upper, arr.ind = TRUE)
-
-# identify the positive pairs
-positive_pairs = data.frame(
-  Species_1 = colnames(PA_model$Y)[idx_pos[, 1]],
-  Species_2 = colnames(PA_model$Y)[idx_pos[, 2]],
-  Support   = support[idx_pos])
-
-# quick double check to confirm there are no self pairs (A-B B-A)
-positive_pairs = positive_pairs %>%
-  mutate(sp1 = pmin(Species_1, Species_2),
-         sp2 = pmax(Species_1, Species_2)) %>%
-  distinct(sp1, sp2, .keep_all = TRUE) %>%
-  select(-sp1, -sp2)
-
-# identify the negative pairs
-negative_pairs = data.frame(
-  Species_1 = colnames(PA_model$Y)[idx_neg[, 1]],
-  Species_2 = colnames(PA_model$Y)[idx_neg[, 2]],
-  Support   = support[idx_neg])
-
-# quick double check to confirm there are no self pairs (A-B B-A)
-negative_pairs = negative_pairs %>%
-  mutate(sp1 = pmin(Species_1, Species_2),
-         sp2 = pmax(Species_1, Species_2)) %>%
-  distinct(sp1, sp2, .keep_all = TRUE) %>%
-  select(-sp1, -sp2)
-
-# count how many strong residual positive associations there are
-n_positive = sum(support[upper] >= 0.95)
-
-#  count how many strong residual negative associations there are
-n_negative = sum(support[upper] <= 0.05)
 
 # who had the most positive and negative associations?
 positive_counts = sort(
-  table(c(positive_pairs$Species_1, positive_pairs$Species_2)),
+  table(c(positive_pairs_converged$Species_1, positive_pairs_converged$Species_2)),
   decreasing = TRUE) |>
   as.data.frame()
 colnames(positive_counts) = c("Species", "N_positive_associations")
 
 # who had the most positive and negative associations?
 negative_counts = sort(
-  table(c(negative_pairs$Species_1, negative_pairs$Species_2)),
+  table(c(negative_pairs_converged$Species_1, negative_pairs_converged$Species_2)),
   decreasing = TRUE) |>
   as.data.frame()
 colnames(negative_counts) = c("Species", "N_negative_associations")
@@ -1041,7 +1190,7 @@ colnames(negative_counts) = c("Species", "N_negative_associations")
 ##### butterflyfish interactions #####
 # identify positive residual species-to-species associations involving Chaetodon 
 # butterflyfishes keeping only unique pairs (no A-B B-A duplicates)
-positive_chaetodon_pairs = positive_pairs %>% 
+positive_chaetodon_pairs = positive_pairs_converged %>% 
   filter(str_detect(Species_1, "Chaetodon\\.") | 
            str_detect(Species_2, "Chaetodon\\.")) %>%
   rowwise() %>%
@@ -1053,7 +1202,7 @@ positive_chaetodon_pairs = positive_pairs %>%
 
 # identify negative residual species-to-species associations involving Chaetodon
 # butterflyfishes keeping only unique pairs (no A-B B-A duplicates)
-negative_chaetodon_pairs = negative_pairs %>% 
+negative_chaetodon_pairs = negative_pairs_converged %>% 
   filter(str_detect(Species_1, "Chaetodon\\.") | 
            str_detect(Species_2, "Chaetodon\\.")) %>%
   rowwise() %>%
