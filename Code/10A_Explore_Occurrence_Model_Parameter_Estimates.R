@@ -5,13 +5,13 @@
 # install required packages (first run only)
 # install.packages(c("easypackages", "conflicted", "tidyr", "dplyr", "here", "ggplot2",
 #                    "Hmsc", "coda", "corrplot", "Cairo", "stringr", "PNWColors",
-#                    "colorspace", "grDevices", "colorRamps"))
+#                    "colorspace", "grDevices", "colorRamps", "ape"))
 
 # load packages
 library(easypackages)
 libraries("conflicted", "tidyr", "dplyr", "here", "ggplot2",
           "Hmsc", "coda", "corrplot", "Cairo", "stringr", 
-          "PNWColors", "colorspace", "grDevices", "colorRamps")
+          "PNWColors", "colorspace", "grDevices", "colorRamps", "ape")
 
 # resolve package conflicts
 conflict_prefer("select", "dplyr")
@@ -77,7 +77,7 @@ make_unique_abbrev = function(names) {
 abbrv_species = make_unique_abbrev(PA_model$spNames)
 full_species = PA_model$spNames
 
-#### SPECIES NICHES (BETA) ####
+#### SPECIES NICHES (BETA) - NO SPECIFIC ORDERING ####
 # I want to use abbreviated species names for plotting, set these as the column names
 colnames(PA_model$Y) = abbrv_species
 PA_model$spNames = abbrv_species
@@ -386,7 +386,7 @@ ggplot(
     hjust = 1.05,
     size = 3)
 
-#### SPECIES NICHES (BETA) - PHYLOGENETIC ORDERING ####
+#### TWO SIDE-BY-SIDE PLOTS - ORDERED BY PHYLOGENY ####
 # extract the phylogenetic tree directly from the Hmsc model
 phylo_tree = PA_model$phyloTree
 
@@ -424,90 +424,12 @@ species_order_phylo_abbrv = abbrv_species[
 species_order_phylo_abbrv = rev(
   species_order_phylo_abbrv)
 
-##### split phylogenetic order into two groups #####
+#split phylogenetic order into two groups #
 # first 74 species in the phylogenetic order
 species_group1 = species_order_phylo_abbrv[1:74]
 
 # remaining 75 species in the phylogenetic order
 species_group2 = species_order_phylo_abbrv[75:149]
-
-##### FULL BETA PLOT #####
-beta_plot_df = beta_df %>%
-  mutate(
-    Species = factor(
-      Species,
-      levels = species_order_phylo_abbrv),
-    Variable = factor(
-      Variable,
-      levels = PA_model$covNames))
-
-# create full beta heatmap
-p_beta_full = ggplot(
-  beta_plot_df,
-  aes(x = Variable, y = Species, fill = Sign95)) +
-  geom_tile(
-    colour = "grey80",
-    linewidth = 0.3) +
-  scale_fill_manual(
-    name = NULL,
-    values = c(
-      "Negative" = "darkred",
-      "No effect" = "white",
-      "Positive" = "darkblue",
-      "Poor convergence" = "grey40"),
-    breaks = c(
-      "Negative",
-      "No effect",
-      "Positive",
-      "Poor convergence"),
-    labels = c(
-      "Negative",
-      "No effect",
-      "Positive",
-      "Poor \u03b2 convergence \u2013 not interpreted"),
-    drop = FALSE) +
-  scale_x_discrete(expand = c(0, 0)) +
-  scale_y_discrete(expand = c(0, 0)) +
-  labs(
-    x = NULL,
-    y = NULL) +
-  theme_minimal() +
-  theme(
-    panel.grid = element_blank(),
-    axis.text.x = element_text(
-      angle = 90,
-      hjust = 1,
-      vjust = 0.5,
-      colour = "black"),
-    axis.text.y = element_text(
-      face = "italic",
-      colour = "black"),
-    legend.position = "top")
-
-# save full beta plot
-jpeg(
-  filename = here("Figures", "PA_Model", "Beta_Plot_Phylogenetic.jpg"),
-  width = 10,
-  height = 12,
-  units = "in",
-  res = 600,
-  quality = 100)
-
-print(p_beta_full)
-
-dev.off()
-
-tiff(
-  filename = here("Figures", "PA_Model", "Beta_Plot_Phylogenetic.tiff"),
-  width = 10,
-  height = 12,
-  units = "in",
-  res = 600,
-  compression = "lzw")
-
-print(p_beta_full)
-
-dev.off()
 
 ##### BETA PLOT 1 #####
 beta_plot_1_df = beta_df %>%
@@ -720,6 +642,321 @@ dev.off()
 #     dpi = 450,
 #     limitsize = FALSE)
 # }
+
+#### FULL PLOT - ORDERED BY PHYLOGENY ####
+# use abbreviated species names for plotting
+colnames(PA_model$Y) = abbrv_species
+PA_model$spNames = abbrv_species
+
+# get the posterior estimates of beta parameters
+postBeta = getPostEstimate(
+  PA_model,
+  parName = "Beta")
+
+# exclude species for which >=25% of beta parametersnshowed unsatisfactory convergence
+excluded_species = c(
+  "C. flavissima",
+  "N. armatus",
+  "Z. scopas")
+
+# posterior support threshold
+thresh = 0.95
+
+# tidy posterior mean estimates
+rownames(postBeta$mean) = PA_model$covNames
+
+beta_df = as.data.frame(
+  as.table(postBeta$mean))
+
+names(beta_df) = c(
+  "Variable",
+  "Species",
+  "Mean")
+
+# add posterior support for positive and negative effects
+beta_df$Support_Pos = as.vector(
+  postBeta$support)
+
+beta_df$Support_Neg = as.vector(
+  postBeta$supportNeg)
+
+# classify beta parameters according to 95% posterior support
+beta_df = beta_df %>%
+  mutate(
+    Sign95 = case_when(
+      Species %in% excluded_species ~ "Poor convergence",
+      Support_Pos >= thresh ~ "Positive",
+      Support_Neg >= thresh ~ "Negative",
+      TRUE ~ "No effect"
+    ))
+
+# extract the phylogenetic tree directly from the Hmsc model
+phylo_tree = PA_model$phyloTree
+
+# create a copy of the tree for plotting
+phylo_tree_plot = phylo_tree
+
+# create abbreviated species labels for plotting
+phylo_tree_plot$tip.label = sapply(
+  strsplit(
+    phylo_tree$tip.label,
+    "\\."),
+  function(x) paste0(
+    substr(x[1], 1, 1),
+    ". ",
+    paste(
+      x[-1],
+      collapse = " ")))
+
+# abbreviated species names in the exact phylogenetic tip order
+species_order_phylo = phylo_tree_plot$tip.label
+
+# check that all phylogenetic species occur in beta data
+if (any(
+  !(species_order_phylo %in% unique(beta_df$Species))
+)) {
+  stop(
+    "some species in the phylogenetic tree are missing from beta_df.")
+}
+
+# check that the number of species is identical
+if (
+  length(species_order_phylo) !=
+  length(unique(beta_df$Species))
+) {
+  stop(
+    "the number of phylogenetic tip labels does not match the number of species in beta_df.")
+}
+
+# create phylogenetically ordered beta data
+beta_plot_df = beta_df %>%
+  mutate(
+    Species = factor(
+      Species,
+      levels = species_order_phylo),
+    Variable = factor(
+      Variable,
+      levels = PA_model$covNames))
+
+# create a matrix with:
+# rows = species in phylogenetic order
+# columns = environmental covariates
+# values = Sign95 classification
+beta_matrix = beta_plot_df %>%
+  select(
+    Species,
+    Variable,
+    Sign95) %>%
+  tidyr::pivot_wider(
+    names_from = Variable,
+    values_from = Sign95) %>%
+  as.data.frame()
+
+# set species names as row names
+rownames(beta_matrix) = beta_matrix$Species
+
+beta_matrix$Species = NULL
+beta_matrix = as.matrix(beta_matrix)
+
+# make sure columns are in the exact covariate order
+beta_matrix = beta_matrix[
+  ,
+  PA_model$covNames,
+  drop = FALSE]
+
+# make sure rows are in the exact phylogenetic order
+beta_matrix = beta_matrix[
+  species_order_phylo,
+  ,
+  drop = FALSE]
+
+# check that rows are exactly in phylogenetic order
+if (
+  !all(
+    rownames(beta_matrix) ==
+    species_order_phylo)
+) {
+  stop(
+    "beta matrix species order does not match phylogenetic order.")
+}
+
+# check that there are no missing combinations
+if (any(is.na(beta_matrix))) {
+  stop(
+    "beta matrix contains NA values; one or more species x covariate combinations are missing.")
+}
+
+# calculate the depth of each node from the root
+node_depth = ape::node.depth.edgelength(
+  phylo_tree)
+
+# maximum root-to-tip distance
+max_tree_depth = max(node_depth)
+
+# show the full phylogeny
+tree_xmin = 0
+
+# create and save the figure
+jpeg(
+  filename = here(
+    "Figures",
+    "PA_Model",
+    "Beta_Plot_Portrait_Phylogenetic_Full.jpg"),
+  width = 11,
+  height = 14,
+  units = "in",
+  res = 600,
+  quality = 100)
+
+beta_cols = c(
+  "Negative" = "darkred",
+  "No effect" = "white",
+  "Positive" = "darkblue",
+  "Poor convergence" = "grey40")
+
+# figure layout:
+# tree + species labels = 24%
+# beta plot = 76%
+
+# use almost the full vertical extent of the figure
+main_bottom = 0.03
+main_top = 1.00
+
+# use exactly the same margins for the tree and beta plot
+# so that the vertical coordinate systems are identical
+main_mar = c(4.2, 0, 0, 0)
+
+# tree + labels should occupy 24% of figure width
+par(
+  fig = c(
+    0.00,
+    0.24,
+    main_bottom,
+    main_top),
+  mar = main_mar,
+  xpd = TRUE)
+
+# amount of horizontal space reserved for species labels
+tree_label_space = max_tree_depth * 0.55
+
+# total x-axis extent of tree + labels
+tree_plot_xmax = (
+  max_tree_depth +
+    tree_label_space)
+
+# plot the phylogenetic tree
+ape::plot.phylo(
+  phylo_tree_plot,
+  type = "phylogram",
+  direction = "rightwards",
+  show.tip.label = FALSE,
+  edge.width = 0.75,
+  x.lim = c(
+    tree_xmin,
+    tree_plot_xmax),
+  y.lim = c(
+    0.5,
+    length(
+      phylo_tree$tip.label) + 0.5),
+  no.margin = FALSE)
+
+# retrieve the coordinates used by plot.phylo
+phylo_coords = get(
+  "last_plot.phylo",
+  envir = get(
+    ".PlotPhyloEnv",
+    envir = asNamespace("ape")))
+
+# extract tip y coordinates
+tip_y = phylo_coords$yy[
+  seq_len(
+    length(
+      phylo_tree$tip.label))]
+
+# position labels just to the right of the tree
+label_x = (
+  max_tree_depth +
+    tree_label_space * 0.03)
+
+text(
+  x = label_x,
+  y = tip_y,
+  labels = phylo_tree_plot$tip.label,
+  pos = 4,
+  offset = 0,
+  font = 3,
+  cex = 0.6)
+
+# beta plot occupies approximately 76% of the figure width
+par(
+  fig = c(
+    0.24,
+    1.00,
+    main_bottom,
+    main_top),
+  mar = main_mar,
+  xpd = FALSE,
+  new = TRUE)
+
+plot(
+  NA,
+  xlim = c(
+    0,
+    ncol(beta_matrix)),
+  ylim = c(
+    0.5,
+    length(
+      phylo_tree$tip.label) + 0.5),
+  xaxt = "n",
+  yaxt = "n",
+  xlab = "",
+  ylab = "",
+  bty = "n")
+
+# height of each beta tile
+beta_height = 1
+
+# use the exact y coordinate of the corresponding phylogenetic tip for every beta row
+for (i in seq_len(
+  nrow(beta_matrix))) {
+  
+  for (j in seq_len(
+    ncol(beta_matrix))) {
+    
+    rect(
+      xleft = j - 1,
+      ybottom = (
+        tip_y[i] -
+          beta_height / 2),
+      xright = j,
+      ytop = (
+        tip_y[i] +
+          beta_height / 2),
+      col = beta_cols[
+        beta_matrix[i, j]],
+      border = "grey80",
+      lwd = 0.4)
+  }
+}
+
+# add covariate names to the x-axis
+axis(
+  side = 1,
+  at = seq_len(
+    ncol(beta_matrix)) - 0.5,
+  labels = colnames(beta_matrix),
+  las = 2,
+  cex.axis = 0.8,
+  tick = FALSE)
+
+# no y-axis labels - species names are supplied by the phylogenetic tree directly
+axis(
+  side = 2,
+  at = tip_y,
+  labels = FALSE,
+  tick = FALSE)
+
+dev.off()
 
 #### TRAIT EFFECTS (GAMMA) ####
 # get the posterior estimates of the gamma parameters
