@@ -1,5 +1,5 @@
 # HMSC_Moorea_Reef_Fish
-This repository holds code, data, and other files related to the third data chapter of Courtney Stuart’s PhD research at the University of Oxford [Seascape Ecology Lab](https://www.oxfordseascapeecologylab.com/) (P.I. Dr Lisa Wedding). 
+This repository holds code, data, and other files related to the third data chapter of Courtney Stuart’s PhD research at the University of Oxford [Seascape Ecology Lab](https://www.oxfordseascapeecologylab.com/) (P.I. Dr Lisa Wedding). This study was made possible by two decades of ecological monitoring across the coral reefs of Moorea, French Polynesia, conducted by the Moorea Coral Reef Long Term Ecological Research Site ([MCR LTER](https://mcr.lternet.edu/about/site)). Funded by the U.S. National Science Foundation, the MCR LTER maintains an extensive, long-term ecological database.
 
 # Citation
 Stuart, C. E., Young, M. A., Davis, A. C. D., Green, S. J., Pittman, S. J., Brooks, A. J., Krumbholz, H., and Wedding, L. M. (In Review). Reef geomorphology shapes fish communities more strongly than benthic conditions and disturbance in Moorea, French Polynesia. *Ecography*.
